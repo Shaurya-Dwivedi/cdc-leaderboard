@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #0A0A0B;
+  --color-surface-card: #141416;
+  --color-surface-secondary: #1E1E22;
+
+  --color-accent: #FF4D4F;
+  --color-accent-hover: #FF6B6D;
+
+  --color-text-primary: #FAFAF8;
+  --color-text-muted: #71717A;
+
+  --color-border: #2A2A2E;
+
+  --color-gold: #D4A017;
+  --color-silver: #A0A0A0;
+  --color-bronze: #CD7F32;
+
+  --color-positive: #22C55E;
+  --color-negative: #EF4444;
+
+  --font-display: 'JetBrains Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+}
+
+/* ---- Base ---- */
+html {
+  font-family: var(--font-body);
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* ---- Light mode overrides ---- */
+html.light {
+  --color-surface: #FAFAF8;
+  --color-surface-card: #FFFFFF;
+  --color-surface-secondary: #F0F0ED;
+  --color-text-primary: #0A0A0B;
+  --color-text-muted: #71717A;
+  --color-border: #E0E0DC;
+}
+
+/* ---- Typography ---- */
+.font-display {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-secondary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ---- Custom animations ---- */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-subtle {
+    animation: none;
+  }
+}
+
+/* ---- Focus ring ---- */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---- Selection ---- */
+::selection {
+  background-color: var(--color-accent);
+  color: white;
+}
