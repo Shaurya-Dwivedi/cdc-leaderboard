@@ -67,7 +67,7 @@ export function AddMemberModal({ open, onClose }: AddMemberModalProps) {
             )}
           >
             <UserPlus className="h-3.5 w-3.5" />
-            {addMember.isPending ? 'Adding…' : 'Add Member'}
+            {addMember.isPending ? 'Addingâ€¦' : 'Add Member'}
           </button>
         </div>
       </form>
