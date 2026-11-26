@@ -5,15 +5,13 @@ import './index.css';
 import { setApiClient } from './api/client';
 import { mockApiClient } from './api/mock';
 import { SupabaseApiClient } from './api/supabase';
+import { supabase } from './api/supabaseClient';
 
 // If Supabase environment variables are provided, connect to live cloud Postgres.
 // Otherwise, fall back cleanly to the typed in-memory mock client.
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (supabaseUrl && supabaseKey) {
+if (supabase) {
   console.log('⚡ Initializing Supabase cloud backend');
-  setApiClient(new SupabaseApiClient(supabaseUrl, supabaseKey));
+  setApiClient(new SupabaseApiClient(supabase));
 } else {
   console.log('📦 Using in-memory mock client with seed data');
   setApiClient(mockApiClient);

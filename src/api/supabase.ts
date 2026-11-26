@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   ApiClient,
   AuditLogFilters,
@@ -18,23 +18,33 @@ import type {
 } from '../types';
 import { computeRankings, computeDeltas } from '../lib/ranking';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapEntry(e: any): PointEntry {
+  return {
+    id: e.id,
+    memberId: e.member_id,
+    weekId: e.week_id,
+    delta: e.delta,
+    reasonCategory: e.reason_category,
+    note: e.note,
+    link: e.link,
+    createdBy: e.created_by,
+    createdAt: e.created_at,
+    revertsId: e.reverts_id,
+  };
+}
+
 export class SupabaseApiClient implements ApiClient {
   private supabase: SupabaseClient;
-  private currentAdminId: string;
 
-  constructor(supabaseUrl: string, supabaseAnonKey: string, currentAdminId = 'm-1') {
-    this.supabase = createClient(supabaseUrl, supabaseAnonKey);
-    this.currentAdminId = currentAdminId;
-  }
-
-  setAdminId(id: string) {
-    this.currentAdminId = id;
+  constructor(supabase: SupabaseClient) {
+    this.supabase = supabase;
   }
 
   async getMembers(): Promise<Member[]> {
     const { data, error } = await this.supabase
       .from('members')
-      .select('*')
+      .select('id, name, avatar_url, role')
       .order('name');
     if (error) throw new Error(error.message);
     return (data || []).map((m) => ({
@@ -176,118 +186,36 @@ export class SupabaseApiClient implements ApiClient {
     }));
   }
 
+  // Writes go through admin-only RPCs: the server derives the acting admin from the
+  // signed-in session and enforces the self-award, open-week and double-revert rules.
   async awardPoints(input: AwardPointsInput): Promise<PointEntry> {
-    if (input.memberId === this.currentAdminId) {
-      throw new Error('Admins are not permitted to award points to themselves');
-    }
-
-    const currentWeek = await this.getCurrentWeek();
-
-    const { data, error } = await this.supabase
-      .from('point_entries')
-      .insert({
-        member_id: input.memberId,
-        week_id: currentWeek.week.id,
-        delta: input.delta,
-        reason_category: input.reasonCategory,
-        note: input.note,
-        link: input.link,
-        created_by: this.currentAdminId,
-      })
-      .select()
-      .single();
-
+    const { data, error } = await this.supabase.rpc('award_points', {
+      p_member_id: input.memberId,
+      p_delta: input.delta,
+      p_reason: input.reasonCategory,
+      p_note: input.note ?? null,
+      p_link: input.link ?? null,
+    });
     if (error) throw new Error(error.message);
-
-    return {
-      id: data.id,
-      memberId: data.member_id,
-      weekId: data.week_id,
-      delta: data.delta,
-      reasonCategory: data.reason_category,
-      note: data.note,
-      link: data.link,
-      createdBy: data.created_by,
-      createdAt: data.created_at,
-      revertsId: data.reverts_id,
-    };
+    return mapEntry(data);
   }
 
   async bulkAwardPoints(input: BulkAwardInput): Promise<PointEntry[]> {
-    if (input.memberIds.includes(this.currentAdminId)) {
-      throw new Error('Admins cannot award points to themselves.');
-    }
-
-    const currentWeek = await this.getCurrentWeek();
-    const rows = input.memberIds.map((mId) => ({
-      member_id: mId,
-      week_id: currentWeek.week.id,
-      delta: input.delta,
-      reason_category: input.reasonCategory,
-      note: input.note,
-      link: input.link,
-      created_by: this.currentAdminId,
-    }));
-
-    const { data, error } = await this.supabase
-      .from('point_entries')
-      .insert(rows)
-      .select();
-
+    const { data, error } = await this.supabase.rpc('bulk_award_points', {
+      p_member_ids: input.memberIds,
+      p_delta: input.delta,
+      p_reason: input.reasonCategory,
+      p_note: input.note ?? null,
+      p_link: input.link ?? null,
+    });
     if (error) throw new Error(error.message);
-
-    return (data || []).map((d) => ({
-      id: d.id,
-      memberId: d.member_id,
-      weekId: d.week_id,
-      delta: d.delta,
-      reasonCategory: d.reason_category,
-      note: d.note,
-      link: d.link,
-      createdBy: d.created_by,
-      createdAt: d.created_at,
-      revertsId: d.reverts_id,
-    }));
+    return (data || []).map(mapEntry);
   }
 
   async revertEntry(entryId: string): Promise<PointEntry> {
-    const { data: original, error: oErr } = await this.supabase
-      .from('point_entries')
-      .select('*')
-      .eq('id', entryId)
-      .single();
-
-    if (oErr || !original) throw new Error(`Entry ${entryId} not found`);
-    if (original.reverts_id) throw new Error('Cannot revert a compensating revert entry');
-
-    const { data: compensating, error } = await this.supabase
-      .from('point_entries')
-      .insert({
-        member_id: original.member_id,
-        week_id: original.week_id,
-        delta: -original.delta,
-        reason_category: 'Other',
-        note: `Compensating revert for entry ${original.id}`,
-        created_by: this.currentAdminId,
-        reverts_id: original.id,
-      })
-      .select()
-      .single();
-
+    const { data, error } = await this.supabase.rpc('revert_entry', { p_entry_id: entryId });
     if (error) throw new Error(error.message);
-
-    return {
-      id: compensating.id,
-      memberId: compensating.member_id,
-      weekId: compensating.week_id,
-      delta: compensating.delta,
-      reasonCategory: compensating.reason_category,
-      note: compensating.note,
-      link: compensating.link,
-      createdBy: compensating.created_by,
-      createdAt: compensating.created_at,
-      revertsId: compensating.reverts_id,
-    };
+    return mapEntry(data);
   }
 
   async getAuditLog(filters?: AuditLogFilters): Promise<PointEntry[]> {
@@ -336,17 +264,9 @@ export class SupabaseApiClient implements ApiClient {
   }
 
   async markRewardDelivered(rewardId: string): Promise<Reward> {
-    const { data, error } = await this.supabase
-      .from('rewards')
-      .update({
-        status: 'delivered',
-        delivered_at: new Date().toISOString(),
-        delivered_by: this.currentAdminId,
-      })
-      .eq('id', rewardId)
-      .select()
-      .single();
-
+    const { data, error } = await this.supabase.rpc('mark_reward_delivered', {
+      p_reward_id: rewardId,
+    });
     if (error) throw new Error(error.message);
 
     return {
@@ -402,24 +322,11 @@ export class SupabaseApiClient implements ApiClient {
   }
 
   async reopenWeek(weekId: string, reason: string): Promise<Week> {
-    const { data, error } = await this.supabase
-      .from('weeks')
-      .update({ status: 'open', closed_at: null })
-      .eq('id', weekId)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-
-    // Audit log
-    await this.supabase.from('point_entries').insert({
-      member_id: this.currentAdminId,
-      week_id: weekId,
-      delta: 0,
-      reason_category: 'Other',
-      note: `ADMIN ACTION: Reopened week ${weekId}. Reason: ${reason}`,
-      created_by: this.currentAdminId,
+    const { data, error } = await this.supabase.rpc('reopen_week', {
+      p_week_id: weekId,
+      p_reason: reason,
     });
+    if (error) throw new Error(error.message);
 
     return {
       id: data.id,
