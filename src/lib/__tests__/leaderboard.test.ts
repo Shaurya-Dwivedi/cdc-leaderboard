@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getWeekBoundary, getTimeRemaining } from '../week';
-import { computeRankings, computeRankingsFromTotals, entriesToTotals, computeDeltas } from '../ranking';
+import { computeRankings, computeRankingsFromTotals, entriesToTotals, computeDeltas, splitPodium } from '../ranking';
 import { mockApiClient } from '../../api/mock';
 import type { PointEntry, Member } from '../../types';
 
@@ -271,5 +271,24 @@ describe('Ranking from aggregated totals (DB view rows)', () => {
     // all-time tie at 20: Alice reached it first
     const all = computeRankingsFromTotals(totals, members);
     expect(all.map((r) => [r.memberId, r.rank])).toEqual([['m-1', 1], ['m-2', 1]]);
+  });
+});
+
+describe('splitPodium', () => {
+  const e = (memberId: string, rank: number) => ({ rank, memberId, memberName: memberId, memberAvatar: '', totalPoints: 0 });
+
+  it('lists members tied into a podium place instead of hiding them', () => {
+    // 25, 10, then three members tied at 0 share rank 3
+    const entries = [e('a', 1), e('b', 2), e('c', 3), e('d', 3), e('f', 3)];
+    const { podium, rest } = splitPodium(entries);
+    expect(podium.map((p) => p?.memberId)).toEqual(['a', 'b', 'c']);
+    expect(rest.map((r) => r.memberId)).toEqual(['d', 'f']);
+  });
+
+  it('shows every member exactly once, even with a tie for first', () => {
+    const entries = [e('a', 1), e('b', 1), e('c', 3), e('d', 4)];
+    const { podium, rest } = splitPodium(entries);
+    expect(podium.map((p) => p?.memberId)).toEqual(['a', undefined, 'c']);
+    expect(rest.map((r) => r.memberId)).toEqual(['b', 'd']);
   });
 });
