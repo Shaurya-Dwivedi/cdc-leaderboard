@@ -1,95 +1,61 @@
 # Support Team Leaderboard
 
-An engineering support team leaderboard built with **React**, **TypeScript**, **Tailwind CSS**, and **Motion** (`motion/react`). Features live standings, animated physical podium, URL-synced views, countdown timer with server time offset sync, full admin audit ledger with compensating reverts, and a persistent Hall of Fame archive.
+Weekly points leaderboard for a placement-cell support team. Admins award points, a weekly timer ends the week, and the top 3 get rewards. Anyone can view the board; only signed-in admins can change anything.
 
----
+Stack: React 19, Vite, TypeScript, Tailwind CSS v4, TanStack Query, Supabase (Postgres + Auth), Motion, Sonner, Vitest.
 
-## ⚡ Key Features
+## Status
 
-### 1. Views & Routing
-- **Tabs**: `This Week` | `All Time` | `Hall of Fame` (past weeks). Tab state is synchronized with URL search params (`?view=weekly`, `?view=alltime`, `?view=hall-of-fame`).
-- **Viewer vs Admin Modes**: Seamless in-app mode gating. Admins receive inline row actions, global award triggers, audit log drawer, and reward fulfillment controls.
+- **Mock mode** (no env vars): fully working, state saved in the browser's `localStorage`. Any admin-login credentials work. Seed data is fake names.
+- **Supabase mode**: the client and `supabase/schema.sql` are written, but **the schema has not been run on a live project yet**. Treat all SQL (RPCs, `pg_cron` close job, admin linking) as untested until you run it end to end.
 
-### 2. Physical Podium (Top 3)
-- Staggered spring entrance animation with Olympic 2nd – 1st – 3rd layout (1st place tallest with subtle gold crown and glow).
-- Dynamic re-animation on data updates (e.g. member overtakes).
-- Graceful tie handling (shared ranks) and placeholder empty slots for fewer than 3 participants.
+## What it does
 
-### 3. Ranked List (Rank 4+)
-- **Live Reordering**: Physical row reordering powered by Motion `layout` / `layoutId`.
-- **Rank Deltas**: Green `↑` / Red `↓` / neutral indicators reflecting movement against the previous cycle.
-- **Sticky "You are #N" Bar**: Smooth floating indicator anchored when the current user's row scrolls out of viewport.
-- **Search & Pagination**: Client-side name filtering and pagination.
+- **Tabs**: This Week, All Time, Hall of Fame. The tab is kept in the URL (`?view=weekly|alltime|hall-of-fame`).
+- **Ranking**: higher points first; ties are broken by who reached the score earliest, then by name. Members on equal points share a rank. Weekly view shows rank movement against the previous week.
+- **Podium** for the top 3 (tie-aware) and a ranked list below with search and paging (50 per page). Signed-in viewers matching a member get a sticky "You are #N" bar.
+- **Countdown** to the week end (Sunday 23:59:59 in `CONFIG.TIMEZONE`, default Asia/Kolkata), using a server-clock offset (`server_now()`) so client clock drift does not matter.
+- **Admin actions**: award or deduct points (reason category, note, link), bulk award, revert an entry, view the audit log, mark rewards delivered, close or reopen a week. Awards above `CONFIG.LARGE_ADJUSTMENT_THRESHOLD` (100) ask for confirmation.
+- **Append-only ledger**: points are never edited or deleted. A revert adds an opposite entry that points at the original.
+- **Week close**: ranks the week (shared ranks), snapshots it into `weekly_results`, creates a reward for every member ranked 1-3 with more than 0 points, and opens the next week. Re-closing re-snapshots. In Supabase mode a `pg_cron` job closes the latest week when it expires; awards are rejected after the week's end time.
+- **Hall of Fame** reads the closed-week snapshot. A winners popup shows for 24 hours after a close, once per browser.
+- **Rewards**: ₹500 / ₹300 / ₹200 Amazon vouchers plus Gold / Silver / Bronze badges for places 1-3. Text lives in the `reward_tiers` table (Supabase) and `CONFIG.REWARDS` (mock). Delivery is tracked manually; nothing is sent automatically.
+- Light and dark theme (the choice is not remembered across refreshes), reduced-motion support.
 
-### 4. Countdown Timer
-- Synchronized to Asia/Kolkata Sunday 23:59:59 IST.
-- Calculates remaining time using server clock offset to prevent client clock discrepancies.
-- Animated individual digit flips using Motion `AnimatePresence`.
-- Urgency treatment in the final 24 hours (coral color shift + subtle pulse). Respects `prefers-reduced-motion`.
+## Not built
 
-### 5. Admin Controls & Append-Only Ledger
-- **Point Awards & Adjustments**: Inline per-row button and global modal with reason categories, optional notes, and reference links.
-- **Bulk Awards**: Multi-member selection with one-click presets and batch granting.
-- **Self-Award Restriction**: Server-side enforced restriction preventing admins from awarding points to themselves.
-- **Audit Log**: Full chronological history with search and member filters.
-- **Compensating Reverts**: Append-only ledger integrity — reverts create opposite-delta entries with `revertsId`, never deleting rows.
-- **Confirmation Dialogs**: Configurable threshold (default: 100 pts) prompts confirmation before applying large adjustments.
+- No winner emails or notifications.
+- No UI or RPC to add, edit or remove members. Add members with SQL (see below).
+- No pagination or caching strategy beyond polling every 30 seconds; the audit log reads the whole ledger.
+- `supabase/schema.sql` hardcodes `Asia/Kolkata` for week boundaries. Changing `CONFIG.TIMEZONE` alone changes the UI only, not the database.
 
-### 6. Hall of Fame & Weekly Finalization
-- **Idempotent Week Finalization**: Scheduled/admin week close snapshots final standings and provisions reward vouchers safely.
-- **Reward Fulfillment**: Tracks pending and delivered status for Amazon vouchers and medals.
-- **Celebratory Announcement**: One-time celebratory popup on first visit after a week concludes with confetti effects (stored per user).
+## Run locally
 
----
-
-## 🎨 Visual Design System: Editorial Sports Scoreboard
-- **Display Font**: JetBrains Mono for ranks, points, and timers (`font-display`, `tabular-nums`).
-- **Body Font**: Inter for high legibility.
-- **Palette**: Near-black `#0A0A0B` base with hot coral `#FF4D4F` accent. Gold, silver, and bronze reserved exclusively for podium ranks.
-- **Theme**: Full light and dark mode support with semantic tokens.
-
----
-
-## 🛠️ Tech Stack
-- **Framework**: React 19 + Vite
-- **Language**: TypeScript (Strict Mode)
-- **Styling**: Tailwind CSS v4
-- **Animation**: Motion (`motion/react`)
-- **State & Data**: TanStack Query (React Query)
-- **Icons**: Lucide React
-- **Notifications**: Sonner
-- **Testing**: Vitest
-
----
-
-## 🚀 Getting Started
-
-### Installation
 ```bash
 npm install
+npm run dev       # dev server
+npm test          # vitest
+npm run build     # tsc + vite build
 ```
 
-### Development Server
-```bash
-npm run dev
+## Supabase setup
+
+1. Create a project. Enable the `pg_cron` extension (Database -> Extensions) first.
+2. Copy `.env.example` to `.env` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+3. Run `supabase/schema.sql` in the SQL editor. It is idempotent (re-runnable), seeds week `w-1` (Monday 00:00 IST) and sample members. Replace the sample members with your real roster.
+4. Authentication -> Providers -> Email: **disable "Allow new users to sign up"**.
+5. Authentication -> Users: create each admin, copy their UUID, then link it:
+   ```sql
+   update members set auth_user_id = '<uuid>' where id = 'm-1';
+   ```
+   The member's `role` must be `admin`.
+
+Viewers need no login. Browsers have read-only table access; every write goes through admin-only `SECURITY DEFINER` RPCs (`award_points`, `bulk_award_points`, `revert_entry`, `close_week`, `reopen_week`, `mark_reward_delivered`) that check the caller's session.
+
+### Adding a member
+
+```sql
+insert into members (id, name, avatar_url, role) values ('m-99', 'New Person', '', 'viewer');
 ```
 
-### Run Tests
-```bash
-npm test
-```
-
-### Production Build
-```bash
-npm run build
-```
-
-### Admin auth (Supabase mode)
-Admins sign in with Supabase Auth email + password; viewers need no login (public read-only).
-1. Run `supabase/schema.sql` in the SQL editor.
-2. Dashboard -> Authentication -> Providers -> Email: **disable "Allow new users to sign up"**.
-3. Authentication -> Users -> add each admin, copy their UUID.
-4. `update members set auth_user_id = '<uuid>' where id = 'm-1';` (repeat per admin).
-
-All writes go through admin-only RPCs (`award_points`, `revert_entry`, `close_week`, ...); the browser has no direct write access to tables.
-Without env vars the app runs on an in-memory mock where any admin-login credentials work.
+Use `role = 'admin'` plus the `auth_user_id` step above to make an admin.
