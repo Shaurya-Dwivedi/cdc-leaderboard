@@ -46,6 +46,7 @@ try {
     const open = (state.weeks as Week[]).find((w) => w.status === 'open');
     if (open && new Date(open.endAt).getTime() > Date.now()) {
       ({ weeks, pointEntries, rewards, weeklyResults } = state);
+      if (state.members) members = state.members;
     }
   }
 } catch {
@@ -54,7 +55,7 @@ try {
 
 function persist() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ weeks, pointEntries, rewards, weeklyResults }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ members, weeks, pointEntries, rewards, weeklyResults }));
   } catch {
     // storage full or blocked: state just won't survive a refresh
   }
@@ -99,6 +100,7 @@ export class MockApiClient implements ApiClient {
   constructor() {
     // Save after every successful write.
     for (const name of [
+      'addMember',
       'awardPoints',
       'bulkAwardPoints',
       'revertEntry',
@@ -118,6 +120,23 @@ export class MockApiClient implements ApiClient {
   async getMembers(): Promise<Member[]> {
     await simulateLatency(50, 120);
     return [...members];
+  }
+
+  async addMember(name: string): Promise<Member> {
+    checkRateLimit();
+    await simulateLatency(100, 200);
+
+    const clean = name.trim().replace(/\s+/g, ' ');
+    if (clean === '' || clean.length > 80) {
+      throw new Error('Name must be 1-80 characters');
+    }
+    if (members.some((m) => m.name.toLowerCase() === clean.toLowerCase())) {
+      throw new Error(`A member named "${clean}" already exists`);
+    }
+
+    const member: Member = { id: `m-${generateId()}`, name: clean, avatarUrl: '', role: 'viewer' };
+    members.push(member);
+    return { ...member };
   }
 
   async getCurrentWeek(): Promise<CurrentWeekResponse> {

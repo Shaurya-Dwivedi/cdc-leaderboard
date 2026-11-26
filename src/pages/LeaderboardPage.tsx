@@ -14,6 +14,7 @@ import { ActivityFeed } from '../features/leaderboard/ActivityFeed';
 import { WinnerAnnouncement } from '../features/hall-of-fame/WinnerAnnouncement';
 import { AwardPointsModal } from '../features/admin/AwardPointsModal';
 import { BulkAwardModal } from '../features/admin/BulkAwardModal';
+import { AddMemberModal } from '../features/admin/AddMemberModal';
 import { AuditLog } from '../features/admin/AuditLog';
 import { RewardManager } from '../features/admin/RewardManager';
 import { AdminLoginModal } from '../features/admin/AdminLoginModal';
@@ -22,6 +23,7 @@ import { ConfirmDialog } from '../shared/ui/ConfirmDialog';
 import {
   Trophy,
   Users,
+  UserPlus,
   ShieldCheck,
   Plus,
   FileText,
@@ -55,6 +57,7 @@ export function LeaderboardPage() {
   const [isAwardOpen, setIsAwardOpen] = useState(false);
   const [selectedMemberForAward, setSelectedMemberForAward] = useState<string | null>(null);
   const [isBulkAwardOpen, setIsBulkAwardOpen] = useState(false);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isAuditLogOpen, setIsAuditLogOpen] = useState(false);
   const [isRewardsOpen, setIsRewardsOpen] = useState(false);
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
@@ -244,6 +247,14 @@ export function LeaderboardPage() {
               </button>
 
               <button
+                onClick={() => setIsAddMemberOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-card text-text-primary hover:bg-surface-secondary text-xs font-semibold transition-colors"
+              >
+                <UserPlus className="h-3.5 w-3.5 text-text-muted" />
+                <span>Add Member</span>
+              </button>
+
+              <button
                 onClick={() => setIsAuditLogOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-card text-text-primary hover:bg-surface-secondary text-xs font-semibold transition-colors"
               >
@@ -369,6 +380,10 @@ export function LeaderboardPage() {
           <BulkAwardModal
             open={isBulkAwardOpen}
             onClose={() => setIsBulkAwardOpen(false)}
+          />
+          <AddMemberModal
+            open={isAddMemberOpen}
+            onClose={() => setIsAddMemberOpen(false)}
           />
           <AuditLog
             open={isAuditLogOpen}

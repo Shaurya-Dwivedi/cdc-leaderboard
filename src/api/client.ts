@@ -27,6 +27,8 @@ export interface ApiClient {
   getWeeks(): Promise<WeekWithWinners[]>;
   getCurrentWeek(): Promise<CurrentWeekResponse>;
   getMembers(): Promise<Member[]>;
+  /** Admin only. Creates a viewer; the server generates the id. */
+  addMember(name: string): Promise<Member>;
   awardPoints(input: AwardPointsInput): Promise<PointEntry>;
   bulkAwardPoints(input: BulkAwardInput): Promise<PointEntry[]>;
   revertEntry(entryId: string): Promise<PointEntry>;
