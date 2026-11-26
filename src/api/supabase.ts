@@ -66,6 +66,14 @@ export class SupabaseApiClient implements ApiClient {
     }));
   }
 
+  /** Database clock, nudged forward by half the round-trip. */
+  private async serverNow(): Promise<string> {
+    const t0 = Date.now();
+    const { data, error } = await this.supabase.rpc('server_now');
+    if (error) throw new Error(error.message);
+    return new Date(new Date(data).getTime() + (Date.now() - t0) / 2).toISOString();
+  }
+
   async getCurrentWeek(): Promise<CurrentWeekResponse> {
     const { data, error } = await this.supabase
       .from('weeks')
@@ -79,10 +87,7 @@ export class SupabaseApiClient implements ApiClient {
 
     if (!data) throw new Error('No open week. Run supabase/schema.sql to seed one, or reopen a week.');
 
-    return {
-      week: mapWeek(data),
-      serverNow: new Date().toISOString(),
-    };
+    return { week: mapWeek(data), serverNow: await this.serverNow() };
   }
 
   async getWeeks(): Promise<WeekWithWinners[]> {

@@ -165,6 +165,9 @@ begin
   if v_week is null then
     raise exception 'No open week. Reopen a week first.';
   end if;
+  if (select end_at from weeks where id = v_week) <= now() then
+    raise exception 'This week has ended and is closing. Try again in a minute.';
+  end if;
   insert into point_entries (member_id, week_id, delta, reason_category, note, link, created_by)
   values (p_member_id, v_week, p_delta, p_reason, nullif(trim(p_note), ''), nullif(trim(p_link), ''), v_admin)
   returning * into v_row;
@@ -193,6 +196,9 @@ begin
   select id into v_week from weeks where status = 'open' order by start_at desc limit 1;
   if v_week is null then
     raise exception 'No open week. Reopen a week first.';
+  end if;
+  if (select end_at from weeks where id = v_week) <= now() then
+    raise exception 'This week has ended and is closing. Try again in a minute.';
   end if;
   return query
     insert into point_entries (member_id, week_id, delta, reason_category, note, link, created_by)
@@ -273,11 +279,10 @@ $$;
 -- ==============================================================================
 -- IDEMPOTENT WEEK CLOSING (admin only)
 -- ==============================================================================
-create or replace function close_week(p_week_id text)
+create or replace function do_close_week(p_week_id text, p_by text)
 returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  v_admin text := require_admin();
   v_week weeks;
   v_next text;
 begin
@@ -319,7 +324,7 @@ begin
   on conflict (week_id, member_id) do nothing;
 
   update weeks set status = 'closed', closed_at = now() where id = p_week_id;
-  insert into week_events (week_id, action, by_member_id) values (p_week_id, 'closed', v_admin);
+  insert into week_events (week_id, action, by_member_id) values (p_week_id, 'closed', p_by);
 
   -- Open the next week if this was the latest one.
   if not exists (select 1 from weeks where start_at >= v_week.end_at) then
@@ -333,14 +338,48 @@ begin
 end;
 $$;
 
+-- Admin entry point.
+create or replace function close_week(p_week_id text)
+returns jsonb
+language sql security definer set search_path = public as $$
+  select do_close_week(p_week_id, require_admin());
+$$;
+
+-- Scheduler entry point: closes every expired open week that is the latest week.
+-- (A reopened older week is left alone; the latest-week rule keeps reopen usable.)
+create or replace function close_expired_weeks() returns integer
+language plpgsql security definer set search_path = public as $$
+declare
+  v_id text;
+  v_n integer := 0;
+begin
+  for v_id in
+    select w.id from weeks w
+    where w.status = 'open' and w.end_at <= now()
+      and not exists (select 1 from weeks n where n.start_at > w.start_at)
+    order by w.start_at
+  loop
+    perform do_close_week(v_id, null);
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end;
+$$;
+
+-- Authoritative clock for the countdown.
+create or replace function server_now() returns timestamptz
+language sql stable as $$ select now(); $$;
+
 -- Only signed-in admins may call write RPCs; helpers are internal-only.
 revoke execute on function
   current_admin_id(), require_admin(), current_admin(),
+  do_close_week(text, text), close_expired_weeks(), server_now(),
   award_points(text, integer, text, text, text),
   bulk_award_points(text[], integer, text, text, text),
   revert_entry(text), mark_reward_delivered(text),
   reopen_week(text, text), close_week(text)
 from public, anon, authenticated;
+grant execute on function server_now() to anon, authenticated;
 grant execute on function
   current_admin(),
   award_points(text, integer, text, text, text),
@@ -379,6 +418,12 @@ insert into members (id, name, avatar_url, role) values
   ('m-24', 'Varun Sengupta', 'https://api.dicebear.com/7.x/avataaars/svg?seed=VarunSengupta', 'viewer'),
   ('m-25', 'Swati Nambiar', 'https://api.dicebear.com/7.x/avataaars/svg?seed=SwatiNambiar', 'viewer')
 on conflict (id) do nothing;
+
+-- ==============================================================================
+-- AUTO-CLOSE SCHEDULER (pg_cron, every minute; re-running updates the same job)
+-- ==============================================================================
+create extension if not exists pg_cron;
+select cron.schedule('close-expired-weeks', '* * * * *', 'select close_expired_weeks()');
 
 -- ==============================================================================
 -- SEED FIRST WEEK (Monday 00:00 IST of the current week; skipped if any week exists)
