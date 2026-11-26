@@ -145,11 +145,12 @@ export function getWeeklyPointsMap(entries: PointEntry[], weekId: string): Map<s
 
 /**
  * The podium shows one member per place 1-3 (first in tie-break order when places are
- * shared). Everyone else, including extra members tied into those places, goes in the list.
+ * shared), and only members with points; an unearned place stays an empty placeholder.
+ * Everyone else, including extra members tied into those places, goes in the list.
  */
 export function splitPodium(entries: LeaderboardEntry[] | undefined) {
   const all = entries ?? [];
-  const podium = [1, 2, 3].map((r) => all.find((e) => e.rank === r) ?? null) as [
+  const podium = [1, 2, 3].map((r) => all.find((e) => e.rank === r && e.totalPoints > 0) ?? null) as [
     LeaderboardEntry | null,
     LeaderboardEntry | null,
     LeaderboardEntry | null,
