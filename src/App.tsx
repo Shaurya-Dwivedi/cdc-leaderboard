@@ -15,12 +15,12 @@ export default function App() {
           </Routes>
           <Toaster
             position="bottom-right"
-            theme="dark"
+            // Colors come from the theme CSS variables, so toasts follow the light/dark toggle.
             toastOptions={{
               style: {
-                background: '#141416',
-                borderColor: '#2A2A2E',
-                color: '#FAFAF8',
+                background: 'var(--color-surface-card)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text-primary)',
               },
             }}
           />
