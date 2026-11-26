@@ -15,7 +15,7 @@ Stack: React 19, Vite, TypeScript, Tailwind CSS v4, TanStack Query, Supabase (Po
 - **Ranking**: higher points first; ties are broken by who reached the score earliest, then by name. Members on equal points share a rank. Weekly view shows rank movement against the previous week.
 - **Podium** for the top 3 (tie-aware) and a ranked list below with search and paging (50 per page). Signed-in viewers matching a member get a sticky "You are #N" bar.
 - **Countdown** to the week end (Sunday 23:59:59 in `CONFIG.TIMEZONE`, default Asia/Kolkata), using a server-clock offset (`server_now()`) so client clock drift does not matter.
-- **Admin actions**: award or deduct points (reason category, note, link), bulk award, revert an entry, view the audit log, mark rewards delivered, close or reopen a week. Awards above `CONFIG.LARGE_ADJUSTMENT_THRESHOLD` (100) ask for confirmation.
+- **Admin actions**: award or deduct points (reason category, note, link), bulk award, add a member, revert an entry, view the audit log, mark rewards delivered, close or reopen a week. Awards above `CONFIG.LARGE_ADJUSTMENT_THRESHOLD` (100) ask for confirmation.
 - **Append-only ledger**: points are never edited or deleted. A revert adds an opposite entry that points at the original.
 - **Week close**: ranks the week (shared ranks), snapshots it into `weekly_results`, creates a reward for every member ranked 1-3 with more than 0 points, and opens the next week. Re-closing re-snapshots. In Supabase mode a `pg_cron` job closes the latest week when it expires; awards are rejected after the week's end time.
 - **Hall of Fame** reads the closed-week snapshot. A winners popup shows for 24 hours after a close, once per browser.
@@ -25,7 +25,7 @@ Stack: React 19, Vite, TypeScript, Tailwind CSS v4, TanStack Query, Supabase (Po
 ## Not built
 
 - No winner emails or notifications.
-- No UI or RPC to add, edit or remove members. Add members with SQL (see below).
+- No UI to edit or remove members, and no UI to create admins. Do those with SQL (see below).
 - No pagination or caching strategy beyond polling every 30 seconds; the audit log reads the whole ledger.
 - `supabase/schema.sql` hardcodes `Asia/Kolkata` for week boundaries. Changing `CONFIG.TIMEZONE` alone changes the UI only, not the database.
 
@@ -50,12 +50,14 @@ npm run build     # tsc + vite build
    ```
    The member's `role` must be `admin`.
 
-Viewers need no login. Browsers have read-only table access; every write goes through admin-only `SECURITY DEFINER` RPCs (`award_points`, `bulk_award_points`, `revert_entry`, `close_week`, `reopen_week`, `mark_reward_delivered`) that check the caller's session.
+Viewers need no login. Browsers have read-only table access; every write goes through admin-only `SECURITY DEFINER` RPCs (`award_points`, `bulk_award_points`, `add_member`, `revert_entry`, `close_week`, `reopen_week`, `mark_reward_delivered`) that check the caller's session.
 
 ### Adding a member
+
+Signed-in admins use the **Add Member** button (name only; creates a regular member with an auto-generated id, rejects duplicate names). SQL equivalent:
 
 ```sql
 insert into members (id, name, avatar_url, role) values ('m-99', 'New Person', '', 'viewer');
 ```
 
-Use `role = 'admin'` plus the `auth_user_id` step above to make an admin.
+Admins are always made by hand: use `role = 'admin'` plus the `auth_user_id` step above.

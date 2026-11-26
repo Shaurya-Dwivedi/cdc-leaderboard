@@ -383,6 +383,27 @@ $$;
 create or replace function server_now() returns timestamptz
 language sql stable as $$ select now(); $$;
 
+-- Adds a viewer. Admins are made manually (Auth user + auth_user_id), never from the UI.
+create or replace function add_member(p_name text) returns members
+language plpgsql security definer set search_path = public as $$
+declare
+  v_name text := regexp_replace(trim(coalesce(p_name, '')), '\s+', ' ', 'g');
+  v_row members;
+begin
+  perform require_admin();
+  if v_name = '' or length(v_name) > 80 then
+    raise exception 'Name must be 1-80 characters';
+  end if;
+  if exists (select 1 from members where lower(name) = lower(v_name)) then
+    raise exception 'A member named "%" already exists', v_name;
+  end if;
+  insert into members (id, name, role)
+  values ('m-' || replace(uuid_generate_v4()::text, '-', ''), v_name, 'viewer')
+  returning * into v_row;
+  return v_row;
+end;
+$$;
+
 -- Only signed-in admins may call write RPCs; helpers are internal-only.
 revoke execute on function
   current_admin_id(), require_admin(), current_admin(),
@@ -390,7 +411,7 @@ revoke execute on function
   award_points(text, integer, text, text, text),
   bulk_award_points(text[], integer, text, text, text),
   revert_entry(text), mark_reward_delivered(text),
-  reopen_week(text, text), close_week(text)
+  reopen_week(text, text), close_week(text), add_member(text)
 from public, anon, authenticated;
 grant execute on function server_now() to anon, authenticated;
 grant execute on function
@@ -398,7 +419,7 @@ grant execute on function
   award_points(text, integer, text, text, text),
   bulk_award_points(text[], integer, text, text, text),
   revert_entry(text), mark_reward_delivered(text),
-  reopen_week(text, text), close_week(text)
+  reopen_week(text, text), close_week(text), add_member(text)
 to authenticated;
 
 -- ==============================================================================

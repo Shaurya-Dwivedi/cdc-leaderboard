@@ -81,6 +81,12 @@ export class SupabaseApiClient implements ApiClient {
     }));
   }
 
+  async addMember(name: string): Promise<Member> {
+    const { data, error } = await this.supabase.rpc('add_member', { p_name: name });
+    if (error) throw new Error(error.message);
+    return { id: data.id, name: data.name, avatarUrl: data.avatar_url, role: data.role };
+  }
+
   /** Database clock, nudged forward by half the round-trip. */
   private async serverNow(): Promise<string> {
     const t0 = Date.now();
