@@ -33,6 +33,38 @@ let pointEntries: PointEntry[] = [...SEED_POINT_ENTRIES];
 let rewards: Reward[] = [...SEED_REWARDS];
 let weeklyResults: WeeklyResult[] = [];
 
+// Persist mock state across refreshes. Bump the key if seed data or shapes change.
+const STORAGE_KEY = 'cdc-mock-state-v1';
+
+try {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    const state = JSON.parse(saved);
+    // Seed dates are relative to "now": drop saved state once its open week has expired
+    // (the mock has no scheduler to roll the week over).
+    const open = (state.weeks as Week[]).find((w) => w.status === 'open');
+    if (open && new Date(open.endAt).getTime() > Date.now()) {
+      ({ weeks, pointEntries, rewards, weeklyResults } = state);
+    }
+  }
+} catch {
+  // corrupt or unavailable storage: start from seed
+}
+
+function persist() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ weeks, pointEntries, rewards, weeklyResults }));
+  } catch {
+    // storage full or blocked: state just won't survive a refresh
+  }
+}
+
+/** Wipe saved mock state and reload from seed. */
+export function resetMockState() {
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+
 // Rate limiting tracker for admin writes
 const adminWriteTimestamps: number[] = [];
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -63,6 +95,25 @@ export function setCurrentAdminId(id: string) {
 }
 
 export class MockApiClient implements ApiClient {
+  constructor() {
+    // Save after every successful write.
+    for (const name of [
+      'awardPoints',
+      'bulkAwardPoints',
+      'revertEntry',
+      'markRewardDelivered',
+      'closeWeek',
+      'reopenWeek',
+    ] as const) {
+      const original = this[name].bind(this) as (...a: unknown[]) => Promise<unknown>;
+      this[name] = (async (...args: unknown[]) => {
+        const result = await original(...args);
+        persist();
+        return result;
+      }) as never;
+    }
+  }
+
   async getMembers(): Promise<Member[]> {
     await simulateLatency(50, 120);
     return [...members];
