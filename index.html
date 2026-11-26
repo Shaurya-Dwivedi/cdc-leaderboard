@@ -11,6 +11,9 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <script>
+      try { if (localStorage.getItem('theme') === 'light') document.documentElement.classList.add('light'); } catch (e) {}
+    </script>
   </head>
   <body class="bg-[#0A0A0B] text-[#FAFAF8] antialiased selection:bg-[#FF4D4F] selection:text-white">
     <div id="root"></div>

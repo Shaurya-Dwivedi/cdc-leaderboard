@@ -51,7 +51,10 @@ export function LeaderboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('view') as LeaderboardScope | 'hall-of-fame') || 'weekly';
 
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  // The class is applied before first paint by an inline script in index.html.
+  const [theme, setTheme] = useState<'dark' | 'light'>(() =>
+    document.documentElement.classList.contains('light') ? 'light' : 'dark',
+  );
 
   // Modals state
   const [isAwardOpen, setIsAwardOpen] = useState(false);
@@ -80,6 +83,11 @@ export function LeaderboardPage() {
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
+    try {
+      localStorage.setItem('theme', next);
+    } catch {
+      // storage blocked: theme just won't survive a refresh
+    }
     if (next === 'light') {
       document.documentElement.classList.add('light');
     } else {

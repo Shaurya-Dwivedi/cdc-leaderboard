@@ -20,7 +20,7 @@ Stack: React 19, Vite, TypeScript, Tailwind CSS v4, TanStack Query, Supabase (Po
 - **Week close**: ranks the week (shared ranks), snapshots it into `weekly_results`, creates a reward for every member ranked 1-3 with more than 0 points, and opens the next week. Re-closing re-snapshots. In Supabase mode a `pg_cron` job closes the latest week when it expires; awards are rejected after the week's end time.
 - **Hall of Fame** reads the closed-week snapshot. A winners popup shows for 24 hours after a close, once per browser.
 - **Rewards**: ₹500 / ₹300 / ₹200 Amazon vouchers plus Gold / Silver / Bronze badges for places 1-3. Text lives in the `reward_tiers` table (Supabase) and `CONFIG.REWARDS` (mock). Delivery is tracked manually; nothing is sent automatically.
-- Light and dark theme (the choice is not remembered across refreshes), reduced-motion support.
+- Light and dark theme (the choice is remembered in the browser), reduced-motion support.
 
 ## Not built
 
