@@ -98,6 +98,25 @@ create table if not exists reward_tiers (
 );
 
 -- ==============================================================================
+-- UPGRADE OLDER INSTALLS (no-ops on a fresh database)
+-- "create table if not exists" skips tables from the original schema, so bring them up to date.
+-- ==============================================================================
+alter table members add column if not exists auth_user_id uuid unique references auth.users(id) on delete set null;
+
+-- Original rewards table allowed one row per place; ties now share a place, so it is one per member.
+do $$ begin
+  if exists (select 1 from pg_constraint where conname = 'rewards_week_id_place_key') then
+    alter table rewards drop constraint rewards_week_id_place_key;
+    alter table rewards add constraint rewards_week_id_member_id_key unique (week_id, member_id);
+  end if;
+end $$;
+
+-- Original direct-write policies are replaced by the admin-only RPCs below.
+drop policy if exists "Allow admin insert on point_entries" on point_entries;
+drop policy if exists "Allow admin update on rewards" on rewards;
+drop function if exists is_admin(text);
+
+-- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
 
@@ -429,7 +448,7 @@ insert into members (id, name, avatar_url, role) values
   ('m-1', 'Shaurya Dwivedi', '', 'admin'),
   ('m-2', 'Sanchit Garg', '', 'admin'),
   ('m-3', 'Krish Patel', '', 'admin')
-on conflict (id) do nothing;
+on conflict (id) do update set name = excluded.name, avatar_url = excluded.avatar_url, role = excluded.role;
 
 -- ==============================================================================
 -- REWARD TIERS (edit labels here; close_week and the UI both read this table)
