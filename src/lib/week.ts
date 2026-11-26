@@ -13,32 +13,44 @@ export interface WeekBoundary {
   end: Date;
 }
 
-/**
- * Get the week boundary (Monday 00:00:00 to Sunday 23:59:59) containing the given date
- * in the configured timezone.
- */
-export function getWeekBoundary(date: Date): WeekBoundary {
-  // Work in UTC but compute "local" day-of-week in Asia/Kolkata (UTC+5:30)
-  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-  const localMs = date.getTime() + IST_OFFSET_MS;
-  const localDate = new Date(localMs);
+/** Offset (ms) of `tz` from UTC at the given instant. */
+function tzOffsetMs(date: Date, tz: string): number {
+  const p: Record<string, number> = {};
+  for (const part of new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+  }).formatToParts(date)) {
+    if (part.type !== 'literal') p[part.type] = Number(part.value);
+  }
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - Math.floor(date.getTime() / 1000) * 1000;
+}
 
-  // getUTCDay: 0=Sun, 1=Mon ... 6=Sat
-  const dow = localDate.getUTCDay();
-  // Days since Monday (Mon=0, Tue=1, ... Sun=6)
+/** Real instant for a wall-clock time in `tz` (wall time passed as if it were UTC ms). */
+function fromWallClock(wallMs: number, tz: string): Date {
+  const guess = wallMs - tzOffsetMs(new Date(wallMs), tz);
+  return new Date(wallMs - tzOffsetMs(new Date(guess), tz));
+}
+
+/**
+ * Get the week boundary (Monday 00:00:00 to Sunday 23:59:59.999) containing the given date
+ * in CONFIG.TIMEZONE.
+ */
+export function getWeekBoundary(date: Date, tz: string = CONFIG.TIMEZONE): WeekBoundary {
+  const wall = new Date(date.getTime() + tzOffsetMs(date, tz));
+  // getUTCDay on the wall-clock value: 0=Sun ... 6=Sat; days since Monday (Mon=0 ... Sun=6)
+  const dow = wall.getUTCDay();
   const daysSinceMonday = dow === 0 ? 6 : dow - 1;
 
-  // Start: Monday 00:00:00 IST
-  const startLocal = new Date(localDate);
-  startLocal.setUTCHours(0, 0, 0, 0);
-  startLocal.setUTCDate(startLocal.getUTCDate() - daysSinceMonday);
-  const start = new Date(startLocal.getTime() - IST_OFFSET_MS);
-
-  // End: Sunday 23:59:59.999 IST
-  const endLocal = new Date(startLocal);
-  endLocal.setUTCDate(startLocal.getUTCDate() + 6);
-  endLocal.setUTCHours(23, 59, 59, 999);
-  const end = new Date(endLocal.getTime() - IST_OFFSET_MS);
+  const mondayWall = Date.UTC(wall.getUTCFullYear(), wall.getUTCMonth(), wall.getUTCDate() - daysSinceMonday);
+  const start = fromWallClock(mondayWall, tz);
+  const end = new Date(fromWallClock(mondayWall + 7 * 24 * 60 * 60 * 1000, tz).getTime() - 1);
 
   return { start, end };
 }

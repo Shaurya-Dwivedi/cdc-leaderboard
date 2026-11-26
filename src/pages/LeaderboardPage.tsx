@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CONFIG } from '../config';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLeaderboard } from '../hooks/useLeaderboard';
@@ -165,7 +166,7 @@ export function LeaderboardPage() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-secondary border border-border text-xs text-text-muted">
             <Flame className="h-3.5 w-3.5 text-accent" />
             <span>
-              {currentWeek ? `Week ${currentWeek.id.replace('w-', '')}` : 'This week'} closes Sunday 23:59:59 IST (Asia/Kolkata)
+              {currentWeek ? `Week ${currentWeek.id.replace('w-', '')}` : 'This week'} closes Sunday {CONFIG.WEEK_END_TIME} ({CONFIG.TIMEZONE})
             </span>
           </div>
 
@@ -342,7 +343,7 @@ export function LeaderboardPage() {
                   </li>
                 </ul>
                 <div className="pt-2 border-t border-border/60 text-[11px] text-text-muted/80">
-                  Points reset weekly every Sunday at 23:59:59 IST. All past records remain permanently in Hall of Fame.
+                  Points reset weekly every Sunday at {CONFIG.WEEK_END_TIME} ({CONFIG.TIMEZONE}). All past records remain permanently in Hall of Fame.
                 </div>
               </div>
             </div>
