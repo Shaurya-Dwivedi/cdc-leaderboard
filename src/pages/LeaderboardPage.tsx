@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CONFIG } from '../config';
+import { useRewardTiers } from '../hooks/useRewards';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLeaderboard } from '../hooks/useLeaderboard';
@@ -36,6 +37,12 @@ import {
 import { cn } from '../lib/utils';
 import type { LeaderboardScope } from '../types';
 
+const PLACE_STYLE: Record<number, { icon: string; name: string; color: string }> = {
+  1: { icon: '🥇', name: '1st Place', color: 'text-gold' },
+  2: { icon: '🥈', name: '2nd Place', color: 'text-silver' },
+  3: { icon: '🥉', name: '3rd Place', color: 'text-bronze' },
+};
+
 export function LeaderboardPage() {
   const { user, isAdmin, logout } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -54,6 +61,7 @@ export function LeaderboardPage() {
 
   // Queries
   const { data: currentWeekData } = useCurrentWeek();
+  const { data: rewardTiers = [] } = useRewardTiers();
   const currentWeek = currentWeekData?.week;
 
   const leaderboardScope: LeaderboardScope = activeTab === 'alltime' ? 'alltime' : 'weekly';
@@ -329,18 +337,14 @@ export function LeaderboardPage() {
                   <span>Weekly Rewards</span>
                 </h4>
                 <ul className="space-y-2 text-text-muted">
-                  <li className="flex items-center justify-between">
-                    <span className="text-gold font-bold">🥇 1st Place</span>
-                    <span className="font-medium text-text-primary">₹500 Voucher + Gold</span>
-                  </li>
-                  <li className="flex items-center justify-between">
-                    <span className="text-silver font-bold">🥈 2nd Place</span>
-                    <span className="font-medium text-text-primary">₹300 Voucher + Silver</span>
-                  </li>
-                  <li className="flex items-center justify-between">
-                    <span className="text-bronze font-bold">🥉 3rd Place</span>
-                    <span className="font-medium text-text-primary">₹200 Voucher + Bronze</span>
-                  </li>
+                  {rewardTiers.map((t) => (
+                    <li key={t.place} className="flex items-center justify-between gap-3">
+                      <span className={`${PLACE_STYLE[t.place]?.color} font-bold shrink-0`}>
+                        {PLACE_STYLE[t.place]?.icon} {PLACE_STYLE[t.place]?.name}
+                      </span>
+                      <span className="font-medium text-text-primary text-right">{t.label}</span>
+                    </li>
+                  ))}
                 </ul>
                 <div className="pt-2 border-t border-border/60 text-[11px] text-text-muted/80">
                   Points reset weekly every Sunday at {CONFIG.WEEK_END_TIME} ({CONFIG.TIMEZONE}). All past records remain permanently in Hall of Fame.

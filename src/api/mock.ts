@@ -11,6 +11,7 @@ import type {
   AwardPointsInput,
   BulkAwardInput,
   Reward,
+  RewardTier,
   ActivityEntry,
   Member,
   WeekWithWinners,
@@ -402,6 +403,10 @@ export class MockApiClient implements ApiClient {
    * Idempotent scheduled / admin week-finalization job.
    * Running twice never double-awards rewards. Safe if run late.
    */
+  async getRewardTiers(): Promise<RewardTier[]> {
+    return Object.entries(CONFIG.REWARDS).map(([place, r]) => ({ place: Number(place), label: r.label }));
+  }
+
   async closeWeek(weekId: string): Promise<Week> {
     checkRateLimit();
     await simulateLatency(200, 400);

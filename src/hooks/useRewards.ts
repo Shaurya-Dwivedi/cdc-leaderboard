@@ -9,6 +9,14 @@ export function useRewards(weekId?: string) {
   });
 }
 
+export function useRewardTiers() {
+  return useQuery({
+    queryKey: ['rewardTiers'],
+    queryFn: () => getApiClient().getRewardTiers(),
+    staleTime: Infinity,
+  });
+}
+
 export function useMarkRewardDelivered() {
   const qc = useQueryClient();
 

@@ -12,6 +12,7 @@ import type {
   AwardPointsInput,
   BulkAwardInput,
   Reward,
+  RewardTier,
   ActivityEntry,
   Member,
   WeekWithWinners,
@@ -276,6 +277,12 @@ export class SupabaseApiClient implements ApiClient {
       deliveredAt: d.delivered_at,
       deliveredBy: d.delivered_by,
     }));
+  }
+
+  async getRewardTiers(): Promise<RewardTier[]> {
+    const { data, error } = await this.supabase.from('reward_tiers').select('place, label').order('place');
+    if (error) throw new Error(error.message);
+    return data || [];
   }
 
   async closeWeek(weekId: string): Promise<Week> {

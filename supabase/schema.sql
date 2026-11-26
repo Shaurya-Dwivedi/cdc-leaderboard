@@ -83,6 +83,12 @@ create table if not exists week_events (
   created_at timestamptz default now()
 );
 
+-- 9. Reward Tiers (single source of truth for reward text per place)
+create table if not exists reward_tiers (
+  place integer primary key check (place in (1, 2, 3)),
+  label text not null
+);
+
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
@@ -93,6 +99,7 @@ alter table point_entries enable row level security;
 alter table weekly_results enable row level security;
 alter table rewards enable row level security;
 alter table week_events enable row level security;
+alter table reward_tiers enable row level security;
 
 -- Public read access: Anyone (authenticated or anonymous) can view the scoreboard
 drop policy if exists "Allow public read on members" on members;
@@ -105,6 +112,8 @@ drop policy if exists "Allow public read on weekly_results" on weekly_results;
 create policy "Allow public read on weekly_results" on weekly_results for select using (true);
 drop policy if exists "Allow public read on rewards" on rewards;
 create policy "Allow public read on rewards" on rewards for select using (true);
+drop policy if exists "Allow public read on reward_tiers" on reward_tiers;
+create policy "Allow public read on reward_tiers" on reward_tiers for select using (true);
 drop policy if exists "Allow public read on week_events" on week_events;
 create policy "Allow public read on week_events" on week_events for select using (true);
 
@@ -116,7 +125,7 @@ create policy "Allow public read on week_events" on week_events for select using
 -- ==============================================================================
 
 -- Browser roles keep read-only access; auth_user_id is hidden from public reads.
-revoke insert, update, delete on members, weeks, point_entries, weekly_results, rewards, week_events from anon, authenticated;
+revoke insert, update, delete on members, weeks, point_entries, weekly_results, rewards, week_events, reward_tiers from anon, authenticated;
 revoke select on members from anon, authenticated;
 grant select (id, name, avatar_url, role, created_at) on members to anon, authenticated;
 
@@ -313,13 +322,9 @@ begin
 
   -- Rewards: every member ranked 1-3 with positive points (tied members share the place).
   insert into rewards (id, week_id, member_id, place, reward_type)
-  select 'rew-' || p_week_id || '-' || r.member_id, p_week_id, r.member_id, r.rank,
-         case r.rank
-           when 1 then '₹500 Amazon Voucher + Gold Badge'
-           when 2 then '₹300 Amazon Voucher + Silver Badge'
-           else '₹200 Amazon Voucher + Bronze Badge'
-         end
+  select 'rew-' || p_week_id || '-' || r.member_id, p_week_id, r.member_id, r.rank, t.label
   from weekly_results r
+  join reward_tiers t on t.place = r.rank
   where r.week_id = p_week_id and r.rank <= 3 and r.total_points > 0
   on conflict (week_id, member_id) do nothing;
 
@@ -418,6 +423,15 @@ insert into members (id, name, avatar_url, role) values
   ('m-24', 'Varun Sengupta', 'https://api.dicebear.com/7.x/avataaars/svg?seed=VarunSengupta', 'viewer'),
   ('m-25', 'Swati Nambiar', 'https://api.dicebear.com/7.x/avataaars/svg?seed=SwatiNambiar', 'viewer')
 on conflict (id) do nothing;
+
+-- ==============================================================================
+-- REWARD TIERS (edit labels here; close_week and the UI both read this table)
+-- ==============================================================================
+insert into reward_tiers (place, label) values
+  (1, '₹500 Amazon Voucher + Gold Badge'),
+  (2, '₹300 Amazon Voucher + Silver Badge'),
+  (3, '₹200 Amazon Voucher + Bronze Badge')
+on conflict (place) do nothing;
 
 -- ==============================================================================
 -- AUTO-CLOSE SCHEDULER (pg_cron, every minute; re-running updates the same job)
