@@ -275,10 +275,10 @@ describe('Ranking from aggregated totals (DB view rows)', () => {
 });
 
 describe('splitPodium', () => {
-  const e = (memberId: string, rank: number) => ({ rank, memberId, memberName: memberId, memberAvatar: '', totalPoints: 0 });
+  const e = (memberId: string, rank: number, totalPoints = 10) => ({ rank, memberId, memberName: memberId, memberAvatar: '', totalPoints });
 
   it('lists members tied into a podium place instead of hiding them', () => {
-    // 25, 10, then three members tied at 0 share rank 3
+    // three members tied for 3rd share rank 3
     const entries = [e('a', 1), e('b', 2), e('c', 3), e('d', 3), e('f', 3)];
     const { podium, rest } = splitPodium(entries);
     expect(podium.map((p) => p?.memberId)).toEqual(['a', 'b', 'c']);
@@ -290,5 +290,12 @@ describe('splitPodium', () => {
     const { podium, rest } = splitPodium(entries);
     expect(podium.map((p) => p?.memberId)).toEqual(['a', undefined, 'c']);
     expect(rest.map((r) => r.memberId)).toEqual(['b', 'd']);
+  });
+
+  it('leaves unearned places empty: members on 0 points never take a podium slot', () => {
+    const entries = [e('a', 1, 25), e('b', 2, 10), e('c', 3, 0), e('d', 3, 0), e('f', 3, 0)];
+    const { podium, rest } = splitPodium(entries);
+    expect(podium.map((p) => p?.memberId)).toEqual(['a', 'b', undefined]);
+    expect(rest.map((r) => r.memberId)).toEqual(['c', 'd', 'f']);
   });
 });
