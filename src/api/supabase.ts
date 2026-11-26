@@ -225,7 +225,7 @@ export class SupabaseApiClient implements ApiClient {
   async getActivity(): Promise<ActivityEntry[]> {
     const { data, error } = await this.supabase
       .from('point_entries')
-      .select('*, members!point_entries_member_id_fkey(name)')
+      .select('*, member:members!point_entries_member_id_fkey(name), admin:members!point_entries_created_by_fkey(name)')
       .order('created_at', { ascending: false })
       .limit(30);
 
@@ -235,9 +235,9 @@ export class SupabaseApiClient implements ApiClient {
       id: d.id,
       timestamp: d.created_at,
       delta: d.delta,
-      memberName: d.members?.name || 'Member',
+      memberName: d.member?.name || 'Member',
       reason: d.note ? `${d.reason_category}: ${d.note}` : d.reason_category,
-      adminName: 'Admin',
+      adminName: d.admin?.name || 'Admin',
     }));
   }
 
