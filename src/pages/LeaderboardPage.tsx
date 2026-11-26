@@ -110,9 +110,6 @@ export function LeaderboardPage() {
                 <h1 className="font-display font-extrabold text-sm md:text-base tracking-tight uppercase">
                   CDC Support Scoreboard
                 </h1>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-secondary text-text-muted border border-border">
-                  V2.4
-                </span>
               </div>
               <p className="text-[11px] text-text-muted hidden sm:block">
                 Weekly & All-Time Engineering Support Impact Leaderboard
@@ -168,7 +165,7 @@ export function LeaderboardPage() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-secondary border border-border text-xs text-text-muted">
             <Flame className="h-3.5 w-3.5 text-accent" />
             <span>
-              Week {currentWeek?.id.replace('w-', '') || '7'} Closes Sunday 23:59:59 IST (Asia/Kolkata)
+              {currentWeek ? `Week ${currentWeek.id.replace('w-', '')}` : 'This week'} closes Sunday 23:59:59 IST (Asia/Kolkata)
             </span>
           </div>
 
