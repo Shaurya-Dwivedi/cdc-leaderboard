@@ -4,7 +4,7 @@ import { useWeeks, useCurrentWeek } from '../../hooks/useWeeks';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Crown, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { CONFIG } from '../../config';
+import { useRewardTiers } from '../../hooks/useRewards';
 import type { WeekWithWinners } from '../../types';
 
 const SHOW_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -19,7 +19,7 @@ function podiumOrder(winners: Winner[]): Winner[] {
   return distinct ? [sorted[1], sorted[0], sorted[2]] : sorted;
 }
 
-function WinnerCard({ w }: { w: Winner }) {
+function WinnerCard({ w, reward }: { w: Winner; reward?: string }) {
   const first = w.rank === 1;
   return (
     <div className={`flex flex-col items-center ${first ? 'w-28 -translate-y-3' : 'w-24'}`}>
@@ -37,7 +37,7 @@ function WinnerCard({ w }: { w: Winner }) {
           #{w.rank} • {w.points} pts
         </span>
         <span className="block text-[10px] text-text-muted mt-0.5">
-          {CONFIG.REWARDS[w.rank]?.label.split('+')[0]}
+          {reward?.split('+')[0]}
         </span>
       </div>
     </div>
@@ -48,6 +48,7 @@ function WinnerCard({ w }: { w: Winner }) {
 export function WinnerAnnouncement() {
   const { data: weeks = [] } = useWeeks();
   const { serverOffset } = useCurrentWeek();
+  const { data: tiers = [] } = useRewardTiers();
   const [dismissed, setDismissed] = useState(false);
 
   const latest = weeks[0];
@@ -105,7 +106,7 @@ export function WinnerAnnouncement() {
 
         <div className="flex flex-wrap items-end justify-center gap-3 pt-2">
           {podiumOrder(latest.winners).map((w) => (
-            <WinnerCard key={w.memberId} w={w} />
+            <WinnerCard key={w.memberId} w={w} reward={tiers.find((t) => t.place === w.rank)?.label} />
           ))}
         </div>
 

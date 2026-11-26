@@ -67,6 +67,11 @@ export interface WeeklyResult {
 
 export type RewardStatus = 'pending' | 'delivered';
 
+export interface RewardTier {
+  place: number;
+  label: string;
+}
+
 export interface Reward {
   id: string;
   weekId: string;

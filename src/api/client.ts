@@ -7,6 +7,7 @@ import type {
   AwardPointsInput,
   BulkAwardInput,
   Reward,
+  RewardTier,
   ActivityEntry,
   Member,
   WeekWithWinners,
@@ -33,6 +34,7 @@ export interface ApiClient {
   getActivity(): Promise<ActivityEntry[]>;
   markRewardDelivered(rewardId: string): Promise<Reward>;
   getRewards(weekId?: string): Promise<Reward[]>;
+  getRewardTiers(): Promise<RewardTier[]>;
   closeWeek(weekId: string): Promise<Week>;
   reopenWeek(weekId: string, reason: string): Promise<Week>;
 }
