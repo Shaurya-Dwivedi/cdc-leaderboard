@@ -50,6 +50,8 @@ npm run build     # tsc + vite build
    ```
    The member's `role` must be `admin`.
 
+Already ran an older version of `schema.sql`? Re-running the current one upgrades it in place. If that database only has the old fake demo members, run `supabase/cleanup-demo-members.sql` once afterwards to remove them.
+
 Viewers need no login. Browsers have read-only table access; every write goes through admin-only `SECURITY DEFINER` RPCs (`award_points`, `bulk_award_points`, `add_member`, `revert_entry`, `close_week`, `reopen_week`, `mark_reward_delivered`) that check the caller's session.
 
 ### Adding a member
