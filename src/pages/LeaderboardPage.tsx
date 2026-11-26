@@ -14,6 +14,7 @@ import { AwardPointsModal } from '../features/admin/AwardPointsModal';
 import { BulkAwardModal } from '../features/admin/BulkAwardModal';
 import { AuditLog } from '../features/admin/AuditLog';
 import { RewardManager } from '../features/admin/RewardManager';
+import { AdminLoginModal } from '../features/admin/AdminLoginModal';
 import { Avatar } from '../shared/ui/Avatar';
 import { ConfirmDialog } from '../shared/ui/ConfirmDialog';
 import {
@@ -29,12 +30,14 @@ import {
   CheckCircle2,
   Lock,
   Unlock,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { LeaderboardScope } from '../types';
 
 export function LeaderboardPage() {
-  const { user, toggleRole } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get('view') as LeaderboardScope | 'hall-of-fame') || 'weekly';
 
@@ -128,34 +131,33 @@ export function LeaderboardPage() {
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
 
-            {/* Role switch toggle (for reviewer / tester convenience) */}
-            <button
-              onClick={toggleRole}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-all',
-                user.role === 'admin'
-                  ? 'border-accent/40 bg-accent/10 text-accent hover:bg-accent/20'
-                  : 'border-border bg-surface-secondary text-text-muted hover:text-text-primary',
-              )}
-              title="Click to toggle between Admin and Viewer modes"
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Role:</span>
-              <span className="uppercase font-bold">{user.role}</span>
-            </button>
-
-            {/* Current user pill */}
-            <div className="flex items-center gap-2 pl-2 border-l border-border">
-              <Avatar src={user.avatarUrl} name={user.name} size="sm" />
-              <div className="hidden md:flex flex-col text-left">
-                <span className="text-xs font-semibold text-text-primary leading-tight">
-                  {user.name}
-                </span>
-                <span className="text-[10px] text-text-muted uppercase font-display">
-                  {user.role}
-                </span>
-              </div>
-            </div>
+            {isAdmin ? (
+              <>
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 text-xs font-semibold transition-all"
+                  title="Sign out"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <span className="uppercase font-bold">Admin</span>
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
+                <div className="flex items-center gap-2 pl-2 border-l border-border">
+                  <Avatar src={user.avatarUrl} name={user.name} size="sm" />
+                  <span className="hidden md:block text-xs font-semibold text-text-primary">
+                    {user.name}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsLoginOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-surface-secondary text-text-muted hover:text-text-primary text-xs font-semibold transition-all"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                <span>Admin login</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -388,6 +390,8 @@ export function LeaderboardPage() {
 
       {/* Winner Announcement Popup (Shows on first visit after week close) */}
       <WinnerAnnouncement />
+
+      <AdminLoginModal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
     </div>
   );
 }

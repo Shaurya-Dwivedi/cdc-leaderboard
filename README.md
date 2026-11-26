@@ -83,3 +83,13 @@ npm test
 ```bash
 npm run build
 ```
+
+### Admin auth (Supabase mode)
+Admins sign in with Supabase Auth email + password; viewers need no login (public read-only).
+1. Run `supabase/schema.sql` in the SQL editor.
+2. Dashboard -> Authentication -> Providers -> Email: **disable "Allow new users to sign up"**.
+3. Authentication -> Users -> add each admin, copy their UUID.
+4. `update members set auth_user_id = '<uuid>' where id = 'm-1';` (repeat per admin).
+
+All writes go through admin-only RPCs (`award_points`, `revert_entry`, `close_week`, ...); the browser has no direct write access to tables.
+Without env vars the app runs on an in-memory mock where any admin-login credentials work.
