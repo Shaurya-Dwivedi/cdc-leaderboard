@@ -417,7 +417,7 @@ begin
     raise exception 'A member named "%" already exists', v_name;
   end if;
   insert into members (id, name, role)
-  values ('m-' || replace(uuid_generate_v4()::text, '-', ''), v_name, 'viewer')
+  values ('m-' || replace(gen_random_uuid()::text, '-', ''), v_name, 'viewer')
   returning * into v_row;
   return v_row;
 end;
