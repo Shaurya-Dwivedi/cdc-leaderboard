@@ -37,6 +37,8 @@ export interface ApiClient {
   markRewardDelivered(rewardId: string): Promise<Reward>;
   getRewards(weekId?: string): Promise<Reward[]>;
   getRewardTiers(): Promise<RewardTier[]>;
+  /** Admin only. Changes the reward text for a place; existing rewards keep their old text. */
+  setRewardTier(place: number, label: string): Promise<RewardTier>;
   closeWeek(weekId: string): Promise<Week>;
   reopenWeek(weekId: string, reason: string): Promise<Week>;
 }

@@ -13,7 +13,7 @@ export function useRewardTiers() {
   return useQuery({
     queryKey: ['rewardTiers'],
     queryFn: () => getApiClient().getRewardTiers(),
-    staleTime: Infinity,
+    staleTime: 60_000, // picks up admin edits within a minute
   });
 }
 
@@ -28,6 +28,23 @@ export function useMarkRewardDelivered() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to update reward: ${error.message}`);
+    },
+  });
+}
+
+export function useSetRewardTiers() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (tiers: { place: number; label: string }[]) => {
+      for (const t of tiers) await getApiClient().setRewardTier(t.place, t.label);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rewardTiers'] });
+      toast.success('Reward tiers updated');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update reward tiers: ${error.message}`);
     },
   });
 }

@@ -19,7 +19,7 @@ Stack: React 19, Vite, TypeScript, Tailwind CSS v4, TanStack Query, Supabase (Po
 - **Append-only ledger**: points are never edited or deleted. A revert adds an opposite entry that points at the original.
 - **Week close**: ranks the week (shared ranks), snapshots it into `weekly_results`, creates a reward for every member ranked 1-3 with more than 0 points, and opens the next week. Re-closing re-snapshots. In Supabase mode a `pg_cron` job closes the latest week when it expires; awards are rejected after the week's end time.
 - **Hall of Fame** reads the closed-week snapshot. A winners popup shows for 24 hours after a close, once per browser.
-- **Rewards**: ₹500 / ₹300 / ₹200 Amazon vouchers plus Gold / Silver / Bronze badges for places 1-3. Text lives in the `reward_tiers` table (Supabase) and `CONFIG.REWARDS` (mock). Delivery is tracked manually; nothing is sent automatically.
+- **Rewards**: ₹500 / ₹300 / ₹200 Amazon vouchers plus Gold / Silver / Bronze badges for places 1-3. Text lives in the `reward_tiers` table (Supabase) and `CONFIG.REWARDS` (mock). Admins change the text in Rewards -> Reward for each place (applies to rewards created from then on). Delivery is tracked manually; nothing is sent automatically.
 - Light and dark theme (the choice is remembered in the browser), reduced-motion support.
 
 ## Not built
@@ -52,7 +52,7 @@ npm run build     # tsc + vite build
 
 Already ran an older version of `schema.sql`? Re-running the current one upgrades it in place. If that database only has the old fake demo members, run `supabase/cleanup-demo-members.sql` once afterwards to remove them.
 
-Viewers need no login. Browsers have read-only table access; every write goes through admin-only `SECURITY DEFINER` RPCs (`award_points`, `bulk_award_points`, `add_member`, `revert_entry`, `close_week`, `reopen_week`, `mark_reward_delivered`) that check the caller's session.
+Viewers need no login. Browsers have read-only table access; every write goes through admin-only `SECURITY DEFINER` RPCs (`award_points`, `bulk_award_points`, `add_member`, `set_reward_tier`, `revert_entry`, `close_week`, `reopen_week`, `mark_reward_delivered`) that check the caller's session.
 
 ### Adding a member
 
