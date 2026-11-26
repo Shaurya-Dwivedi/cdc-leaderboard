@@ -5,15 +5,11 @@
 -- 1. Enable UUID extension
 create extension if not exists "uuid-ossp";
 
--- 2. Clean slate (optional, for fresh setup)
-drop table if exists rewards cascade;
-drop table if exists weekly_results cascade;
-drop table if exists point_entries cascade;
-drop table if exists weeks cascade;
-drop table if exists members cascade;
+-- Safe to re-run: tables use "if not exists", functions "create or replace".
+-- (Column/constraint changes on existing tables need a separate migration.)
 
 -- 3. Members Table
-create table members (
+create table if not exists members (
   id text primary key,
   name text not null,
   avatar_url text default '',
@@ -23,7 +19,7 @@ create table members (
 );
 
 -- 4. Weeks Table
-create table weeks (
+create table if not exists weeks (
   id text primary key, -- e.g. 'w-1', 'w-7'
   start_at timestamptz not null,
   end_at timestamptz not null,
@@ -32,7 +28,7 @@ create table weeks (
 );
 
 -- 5. Point Entries Table (Append-Only Ledger)
-create table point_entries (
+create table if not exists point_entries (
   id text primary key default ('pe-' || replace(uuid_generate_v4()::text, '-', '')),
   member_id text not null references members(id) on delete cascade,
   week_id text not null references weeks(id) on delete cascade,
@@ -49,12 +45,12 @@ create table point_entries (
 );
 
 -- Indexes for lightning fast leaderboard queries
-create index idx_point_entries_week_member on point_entries(week_id, member_id);
-create index idx_point_entries_created_at on point_entries(created_at desc);
-create index idx_point_entries_reverts on point_entries(reverts_id);
+create index if not exists idx_point_entries_week_member on point_entries(week_id, member_id);
+create index if not exists idx_point_entries_created_at on point_entries(created_at desc);
+create index if not exists idx_point_entries_reverts on point_entries(reverts_id);
 
 -- 6. Weekly Results (Snapshot for closed weeks)
-create table weekly_results (
+create table if not exists weekly_results (
   id uuid primary key default uuid_generate_v4(),
   week_id text not null references weeks(id) on delete cascade,
   member_id text not null references members(id) on delete cascade,
@@ -65,7 +61,7 @@ create table weekly_results (
 );
 
 -- 7. Rewards Table
-create table rewards (
+create table if not exists rewards (
   id text primary key default ('rew-' || replace(uuid_generate_v4()::text, '-', '')),
   week_id text not null references weeks(id) on delete cascade,
   member_id text not null references members(id) on delete cascade,
@@ -74,7 +70,17 @@ create table rewards (
   status text not null check (status in ('pending', 'delivered')) default 'pending',
   delivered_at timestamptz,
   delivered_by text references members(id),
-  unique(week_id, place) -- Idempotency: One reward per place per week
+  unique(week_id, member_id) -- Idempotency: one reward per member per week (ties share a place)
+);
+
+-- 8. Week Events (audit trail of close / reopen)
+create table if not exists week_events (
+  id uuid primary key default uuid_generate_v4(),
+  week_id text not null references weeks(id) on delete cascade,
+  action text not null check (action in ('closed', 'reopened')),
+  by_member_id text references members(id), -- null when closed by a scheduler
+  reason text,
+  created_at timestamptz default now()
 );
 
 -- ==============================================================================
@@ -86,13 +92,21 @@ alter table weeks enable row level security;
 alter table point_entries enable row level security;
 alter table weekly_results enable row level security;
 alter table rewards enable row level security;
+alter table week_events enable row level security;
 
 -- Public read access: Anyone (authenticated or anonymous) can view the scoreboard
+drop policy if exists "Allow public read on members" on members;
 create policy "Allow public read on members" on members for select using (true);
+drop policy if exists "Allow public read on weeks" on weeks;
 create policy "Allow public read on weeks" on weeks for select using (true);
+drop policy if exists "Allow public read on point_entries" on point_entries;
 create policy "Allow public read on point_entries" on point_entries for select using (true);
+drop policy if exists "Allow public read on weekly_results" on weekly_results;
 create policy "Allow public read on weekly_results" on weekly_results for select using (true);
+drop policy if exists "Allow public read on rewards" on rewards;
 create policy "Allow public read on rewards" on rewards for select using (true);
+drop policy if exists "Allow public read on week_events" on week_events;
+create policy "Allow public read on week_events" on week_events for select using (true);
 
 -- ==============================================================================
 -- WRITE ACCESS: ADMIN-ONLY RPCs
@@ -102,7 +116,7 @@ create policy "Allow public read on rewards" on rewards for select using (true);
 -- ==============================================================================
 
 -- Browser roles keep read-only access; auth_user_id is hidden from public reads.
-revoke insert, update, delete on members, weeks, point_entries, weekly_results, rewards from anon, authenticated;
+revoke insert, update, delete on members, weeks, point_entries, weekly_results, rewards, week_events from anon, authenticated;
 revoke select on members from anon, authenticated;
 grant select (id, name, avatar_url, role, created_at) on members to anon, authenticated;
 
@@ -242,11 +256,16 @@ begin
   if p_reason is null or length(trim(p_reason)) = 0 then
     raise exception 'A reason is required to reopen a closed week';
   end if;
-  update weeks set status = 'open', closed_at = null where id = p_week_id returning * into v_row;
+  select * into v_row from weeks where id = p_week_id for update;
   if not found then
     raise exception 'Week % not found', p_week_id;
   end if;
-  -- TODO(audit): record who reopened and why (needs an audit table).
+  if v_row.status = 'open' then
+    raise exception 'Week % is already open', p_week_id;
+  end if;
+  update weeks set status = 'open', closed_at = null where id = p_week_id returning * into v_row;
+  insert into week_events (week_id, action, by_member_id, reason)
+  values (p_week_id, 'reopened', v_admin, trim(p_reason));
   return v_row;
 end;
 $$;
@@ -259,53 +278,58 @@ returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
   v_admin text := require_admin();
-  v_week record;
-  v_rec record;
-  v_rank integer := 1;
+  v_week weeks;
+  v_next text;
 begin
-  select * into v_week from weeks where id = p_week_id;
+  select * into v_week from weeks where id = p_week_id for update;
   if not found then
     raise exception 'Week % not found', p_week_id;
   end if;
 
-  -- Idempotency check: if already closed, return existing status
+  -- Idempotency: already closed -> nothing to do
   if v_week.status = 'closed' then
     return jsonb_build_object('success', true, 'message', 'Week is already closed');
   end if;
 
-  -- Snapshot standings from point_entries ledger
-  for v_rec in (
-    select member_id, sum(delta)::int as total_points
-    from point_entries
-    where week_id = p_week_id
-    group by member_id
-    order by sum(delta) desc, max(created_at) asc
-  ) loop
-    insert into weekly_results (week_id, member_id, rank, total_points)
-    values (p_week_id, v_rec.member_id, v_rank, v_rec.total_points)
-    on conflict (week_id, member_id) do nothing;
+  -- Re-snapshot (a reopened week may have changed). Delivered rewards are kept.
+  delete from weekly_results where week_id = p_week_id;
+  delete from rewards where week_id = p_week_id and status = 'pending';
 
-    -- Provision rewards for top 3
-    if v_rank = 1 then
-      insert into rewards (id, week_id, member_id, place, reward_type, status)
-      values ('rew-' || p_week_id || '-1', p_week_id, v_rec.member_id, 1, '₹500 Amazon Voucher + Gold Badge', 'pending')
-      on conflict (week_id, place) do nothing;
-    elsif v_rank = 2 then
-      insert into rewards (id, week_id, member_id, place, reward_type, status)
-      values ('rew-' || p_week_id || '-2', p_week_id, v_rec.member_id, 2, '₹300 Amazon Voucher + Silver Badge', 'pending')
-      on conflict (week_id, place) do nothing;
-    elsif v_rank = 3 then
-      insert into rewards (id, week_id, member_id, place, reward_type, status)
-      values ('rew-' || p_week_id || '-3', p_week_id, v_rec.member_id, 3, '₹200 Amazon Voucher + Bronze Badge', 'pending')
-      on conflict (week_id, place) do nothing;
-    end if;
+  -- Standings: all members, ties share a rank (1,1,3) exactly like the UI.
+  insert into weekly_results (week_id, member_id, rank, total_points)
+  select p_week_id, m.id,
+         (rank() over (order by coalesce(s.total, 0) desc))::int,
+         coalesce(s.total, 0)
+  from members m
+  left join (
+    select member_id, sum(delta)::int as total
+    from point_entries where week_id = p_week_id group by member_id
+  ) s on s.member_id = m.id;
 
-    v_rank := v_rank + 1;
-  end loop;
+  -- Rewards: every member ranked 1-3 with positive points (tied members share the place).
+  insert into rewards (id, week_id, member_id, place, reward_type)
+  select 'rew-' || p_week_id || '-' || r.member_id, p_week_id, r.member_id, r.rank,
+         case r.rank
+           when 1 then '₹500 Amazon Voucher + Gold Badge'
+           when 2 then '₹300 Amazon Voucher + Silver Badge'
+           else '₹200 Amazon Voucher + Bronze Badge'
+         end
+  from weekly_results r
+  where r.week_id = p_week_id and r.rank <= 3 and r.total_points > 0
+  on conflict (week_id, member_id) do nothing;
 
   update weeks set status = 'closed', closed_at = now() where id = p_week_id;
+  insert into week_events (week_id, action, by_member_id) values (p_week_id, 'closed', v_admin);
 
-  return jsonb_build_object('success', true, 'closed_week', p_week_id);
+  -- Open the next week if this was the latest one.
+  if not exists (select 1 from weeks where start_at >= v_week.end_at) then
+    v_next := 'w-' || ((select count(*) from weeks) + 1);
+    insert into weeks (id, start_at, end_at)
+    values (v_next, v_week.end_at, v_week.end_at + interval '7 days')
+    on conflict (id) do nothing;
+  end if;
+
+  return jsonb_build_object('success', true, 'closed_week', p_week_id, 'next_week', v_next);
 end;
 $$;
 
@@ -355,6 +379,15 @@ insert into members (id, name, avatar_url, role) values
   ('m-24', 'Varun Sengupta', 'https://api.dicebear.com/7.x/avataaars/svg?seed=VarunSengupta', 'viewer'),
   ('m-25', 'Swati Nambiar', 'https://api.dicebear.com/7.x/avataaars/svg?seed=SwatiNambiar', 'viewer')
 on conflict (id) do nothing;
+
+-- ==============================================================================
+-- SEED FIRST WEEK (Monday 00:00 IST of the current week; skipped if any week exists)
+-- ==============================================================================
+insert into weeks (id, start_at, end_at)
+select 'w-1',
+       date_trunc('week', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata',
+       (date_trunc('week', now() at time zone 'Asia/Kolkata') + interval '7 days') at time zone 'Asia/Kolkata'
+where not exists (select 1 from weeks);
 
 -- ==============================================================================
 -- LINK ADMINS TO LOGINS (run once per admin after creating them under

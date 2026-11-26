@@ -34,6 +34,17 @@ function mapEntry(e: any): PointEntry {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapWeek(w: any): Week {
+  return {
+    id: w.id,
+    startAt: w.start_at,
+    endAt: w.end_at,
+    status: w.status,
+    closedAt: w.closed_at,
+  };
+}
+
 export class SupabaseApiClient implements ApiClient {
   private supabase: SupabaseClient;
 
@@ -66,23 +77,10 @@ export class SupabaseApiClient implements ApiClient {
 
     if (error) throw new Error(error.message);
 
-    const week: Week = data
-      ? {
-          id: data.id,
-          startAt: data.start_at,
-          endAt: data.end_at,
-          status: data.status,
-          closedAt: data.closed_at,
-        }
-      : {
-          id: 'w-1',
-          startAt: new Date().toISOString(),
-          endAt: new Date(Date.now() + 7 * 86400000).toISOString(),
-          status: 'open',
-        };
+    if (!data) throw new Error('No open week. Run supabase/schema.sql to seed one, or reopen a week.');
 
     return {
-      week,
+      week: mapWeek(data),
       serverNow: new Date().toISOString(),
     };
   }
@@ -93,46 +91,31 @@ export class SupabaseApiClient implements ApiClient {
       .select('*')
       .eq('status', 'closed')
       .order('start_at', { ascending: false });
-
     if (wErr) throw new Error(wErr.message);
 
+    // Winners come from the weekly_results snapshot written by close_week.
+    const { data: results, error: rErr } = await this.supabase
+      .from('weekly_results')
+      .select('week_id, member_id, rank, total_points')
+      .lte('rank', 3)
+      .order('rank');
+    if (rErr) throw new Error(rErr.message);
+
     const members = await this.getMembers();
-    const { data: entries, error: eErr } = await this.supabase
-      .from('point_entries')
-      .select('*');
+    const byId = new Map(members.map((m) => [m.id, m]));
 
-    if (eErr) throw new Error(eErr.message);
-
-    const pointEntries: PointEntry[] = (entries || []).map((e) => ({
-      id: e.id,
-      memberId: e.member_id,
-      weekId: e.week_id,
-      delta: e.delta,
-      reasonCategory: e.reason_category,
-      note: e.note,
-      link: e.link,
-      createdBy: e.created_by,
-      createdAt: e.created_at,
-      revertsId: e.reverts_id,
-    }));
-
-    return (closedWeeks || []).map((w) => {
-      const rankings = computeRankings(pointEntries, members, w.id);
-      return {
-        id: w.id,
-        startAt: w.start_at,
-        endAt: w.end_at,
-        status: w.status,
-        closedAt: w.closed_at,
-        winners: rankings.slice(0, 3).map((r) => ({
-          memberId: r.memberId,
-          memberName: r.memberName,
-          memberAvatar: r.memberAvatar,
+    return (closedWeeks || []).map((w) => ({
+      ...mapWeek(w),
+      winners: (results || [])
+        .filter((r) => r.week_id === w.id)
+        .map((r) => ({
+          memberId: r.member_id,
+          memberName: byId.get(r.member_id)?.name ?? 'Member',
+          memberAvatar: byId.get(r.member_id)?.avatarUrl ?? '',
           rank: r.rank,
-          points: r.totalPoints,
+          points: r.total_points,
         })),
-      };
-    });
+    }));
   }
 
   async getLeaderboard(scope: LeaderboardScope, weekId?: string): Promise<LeaderboardEntry[]> {
@@ -143,24 +126,25 @@ export class SupabaseApiClient implements ApiClient {
 
     if (error) throw new Error(error.message);
 
-    const pointEntries: PointEntry[] = (entries || []).map((e) => ({
-      id: e.id,
-      memberId: e.member_id,
-      weekId: e.week_id,
-      delta: e.delta,
-      reasonCategory: e.reason_category,
-      note: e.note,
-      link: e.link,
-      createdBy: e.created_by,
-      createdAt: e.created_at,
-      revertsId: e.reverts_id,
-    }));
+    const pointEntries = (entries || []).map(mapEntry);
 
     const currentWeekRes = await this.getCurrentWeek();
     const targetWeekId = weekId || currentWeekRes.week.id;
 
     if (scope === 'weekly') {
       const currentRankings = computeRankings(pointEntries, members, targetWeekId);
+
+      // Deltas vs the chronologically previous week (same as mock).
+      const { data: allWeeks, error: wErr } = await this.supabase
+        .from('weeks')
+        .select('id')
+        .order('start_at');
+      if (wErr) throw new Error(wErr.message);
+      const idx = (allWeeks || []).findIndex((w) => w.id === targetWeekId);
+      if (idx > 0) {
+        const prev = computeRankings(pointEntries, members, allWeeks![idx - 1].id);
+        return computeDeltas(currentRankings, prev);
+      }
       return currentRankings;
     }
 
@@ -230,18 +214,7 @@ export class SupabaseApiClient implements ApiClient {
     const { data, error } = await query;
     if (error) throw new Error(error.message);
 
-    return (data || []).map((e) => ({
-      id: e.id,
-      memberId: e.member_id,
-      weekId: e.week_id,
-      delta: e.delta,
-      reasonCategory: e.reason_category,
-      note: e.note,
-      link: e.link,
-      createdBy: e.created_by,
-      createdAt: e.created_at,
-      revertsId: e.reverts_id,
-    }));
+    return (data || []).map(mapEntry);
   }
 
   async getActivity(): Promise<ActivityEntry[]> {
@@ -312,13 +285,7 @@ export class SupabaseApiClient implements ApiClient {
 
     if (uErr) throw new Error(uErr.message);
 
-    return {
-      id: updated.id,
-      startAt: updated.start_at,
-      endAt: updated.end_at,
-      status: updated.status,
-      closedAt: updated.closed_at,
-    };
+    return mapWeek(updated);
   }
 
   async reopenWeek(weekId: string, reason: string): Promise<Week> {
@@ -328,12 +295,6 @@ export class SupabaseApiClient implements ApiClient {
     });
     if (error) throw new Error(error.message);
 
-    return {
-      id: data.id,
-      startAt: data.start_at,
-      endAt: data.end_at,
-      status: data.status,
-      closedAt: data.closed_at,
-    };
+    return mapWeek(data);
   }
 }
