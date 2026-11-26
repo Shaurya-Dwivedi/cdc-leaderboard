@@ -1,63 +1,90 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../../shared/ui/Modal';
-import { useWeeks } from '../../hooks/useWeeks';
-import { useAuth } from '../../hooks/useAuth';
+import { useWeeks, useCurrentWeek } from '../../hooks/useWeeks';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Crown, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CONFIG } from '../../config';
+import type { WeekWithWinners } from '../../types';
 
+const SHOW_WINDOW_MS = 24 * 60 * 60 * 1000;
+const RANK_STYLE: Record<number, string> = { 1: 'text-gold', 2: 'text-silver', 3: 'text-bronze' };
+
+type Winner = WeekWithWinners['winners'][number];
+
+/** Classic podium order (2-1-3) when ranks are distinct, otherwise plain rank order. */
+function podiumOrder(winners: Winner[]): Winner[] {
+  const sorted = [...winners].sort((a, b) => a.rank - b.rank);
+  const distinct = sorted.length === 3 && sorted.every((w, i) => w.rank === i + 1);
+  return distinct ? [sorted[1], sorted[0], sorted[2]] : sorted;
+}
+
+function WinnerCard({ w }: { w: Winner }) {
+  const first = w.rank === 1;
+  return (
+    <div className={`flex flex-col items-center ${first ? 'w-28 -translate-y-3' : 'w-24'}`}>
+      <div className="relative">
+        <Avatar src={w.memberAvatar} name={w.memberName} size={first ? 'lg' : 'md'} />
+        {first && (
+          <Crown className="h-6 w-6 text-gold fill-gold/30 absolute -top-3 -right-2 rotate-12" />
+        )}
+      </div>
+      <div className="mt-2 text-center">
+        <span className="block text-xs font-bold text-text-primary truncate max-w-[100px]">
+          {first ? w.memberName : w.memberName.split(' ')[0]}
+        </span>
+        <span className={`text-[11px] font-display font-bold ${RANK_STYLE[w.rank] ?? ''}`}>
+          #{w.rank} • {w.points} pts
+        </span>
+        <span className="block text-[10px] text-text-muted mt-0.5">
+          {CONFIG.REWARDS[w.rank]?.label.split('+')[0]}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Shows the latest closed week's winners for 24h after it closed, once per browser. */
 export function WinnerAnnouncement() {
-  const { user } = useAuth();
   const { data: weeks = [] } = useWeeks();
-  const [open, setOpen] = useState(false);
-  const [announcedWeek, setAnnouncedWeek] = useState<(typeof weeks)[0] | null>(null);
+  const { serverOffset } = useCurrentWeek();
+  const [dismissed, setDismissed] = useState(false);
+
+  const latest = weeks[0];
+  const storageKey = latest ? `leaderboard_seen_winner_${latest.id}` : '';
+  const inWindow =
+    !!latest?.closedAt &&
+    Date.now() + serverOffset < new Date(latest.closedAt).getTime() + SHOW_WINDOW_MS;
+  const showId =
+    latest && latest.winners.length > 0 && inWindow && !dismissed && !localStorage.getItem(storageKey)
+      ? latest.id
+      : null;
 
   useEffect(() => {
-    if (weeks.length === 0) return;
-
-    // Get the most recently closed week
-    const latestClosed = weeks[0];
-    if (!latestClosed || latestClosed.winners.length === 0) return;
-
-    const storageKey = `leaderboard_seen_winner_${user.id}_${latestClosed.id}`;
-    const alreadySeen = localStorage.getItem(storageKey);
-
-    if (!alreadySeen) {
-      setAnnouncedWeek(latestClosed);
-      setOpen(true);
-
-      // Trigger tasteful confetti burst
-      try {
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.6 },
-          colors: ['#D4A017', '#FF4D4F', '#A0A0A0', '#CD7F32'],
-          disableForReducedMotion: true,
-        });
-      } catch (err) {
-        // Safe fallback if canvas-confetti isn't supported
-      }
+    if (!showId) return;
+    try {
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: ['#D4A017', '#FF4D4F', '#A0A0A0', '#CD7F32'],
+        disableForReducedMotion: true,
+      });
+    } catch {
+      // canvas-confetti unsupported: skip
     }
-  }, [weeks, user.id]);
+  }, [showId]);
 
   const handleDismiss = () => {
-    if (announcedWeek) {
-      localStorage.setItem(`leaderboard_seen_winner_${user.id}_${announcedWeek.id}`, 'true');
-    }
-    setOpen(false);
+    if (storageKey) localStorage.setItem(storageKey, 'true');
+    setDismissed(true);
   };
 
-  if (!open || !announcedWeek) return null;
-
-  const top1 = announcedWeek.winners.find((w) => w.rank === 1) || announcedWeek.winners[0];
-  const top2 = announcedWeek.winners.find((w) => w.rank === 2) || announcedWeek.winners[1];
-  const top3 = announcedWeek.winners.find((w) => w.rank === 3) || announcedWeek.winners[2];
+  if (!showId || !latest) return null;
 
   return (
     <Modal
-      open={open}
+      open
       onClose={handleDismiss}
       title="🏆 Week Concluded — Champions Announced!"
       size="md"
@@ -69,71 +96,17 @@ export function WinnerAnnouncement() {
             <span>Official Standings Finalized</span>
           </span>
           <h3 className="text-xl font-bold text-text-primary">
-            Week {announcedWeek.id.replace('w-', '')} Winners
+            Week {latest.id.replace('w-', '')} Winners
           </h3>
           <p className="text-xs text-text-muted mt-1 max-w-sm mx-auto">
             Congratulations to this week’s top contributors for stellar support and impact!
           </p>
         </div>
 
-        {/* Podium display */}
-        <div className="flex items-end justify-center gap-3 pt-2">
-          {/* 2nd place */}
-          {top2 && (
-            <div className="flex flex-col items-center w-24">
-              <Avatar src={top2.memberAvatar} name={top2.memberName} size="md" />
-              <div className="mt-2 text-center">
-                <span className="block text-xs font-bold text-text-primary truncate max-w-[90px]">
-                  {top2.memberName.split(' ')[0]}
-                </span>
-                <span className="text-[11px] font-display font-bold text-silver">
-                  #{top2.rank} • {top2.points} pts
-                </span>
-                <span className="block text-[10px] text-text-muted mt-0.5">
-                  {CONFIG.REWARDS[2]?.label.split('+')[0] || 'Silver'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* 1st place */}
-          {top1 && (
-            <div className="flex flex-col items-center w-28 -translate-y-3">
-              <div className="relative">
-                <Avatar src={top1.memberAvatar} name={top1.memberName} size="lg" />
-                <Crown className="h-6 w-6 text-gold fill-gold/30 absolute -top-3 -right-2 rotate-12" />
-              </div>
-              <div className="mt-2 text-center">
-                <span className="block text-sm font-bold text-text-primary truncate max-w-[100px]">
-                  {top1.memberName}
-                </span>
-                <span className="text-xs font-display font-bold text-gold">
-                  #{top1.rank} • {top1.points} pts
-                </span>
-                <span className="block text-[10px] text-accent font-semibold mt-0.5">
-                  {CONFIG.REWARDS[1]?.label.split('+')[0] || 'Gold'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* 3rd place */}
-          {top3 && (
-            <div className="flex flex-col items-center w-24">
-              <Avatar src={top3.memberAvatar} name={top3.memberName} size="md" />
-              <div className="mt-2 text-center">
-                <span className="block text-xs font-bold text-text-primary truncate max-w-[90px]">
-                  {top3.memberName.split(' ')[0]}
-                </span>
-                <span className="text-[11px] font-display font-bold text-bronze">
-                  #{top3.rank} • {top3.points} pts
-                </span>
-                <span className="block text-[10px] text-text-muted mt-0.5">
-                  {CONFIG.REWARDS[3]?.label.split('+')[0] || 'Bronze'}
-                </span>
-              </div>
-            </div>
-          )}
+        <div className="flex flex-wrap items-end justify-center gap-3 pt-2">
+          {podiumOrder(latest.winners).map((w) => (
+            <WinnerCard key={w.memberId} w={w} />
+          ))}
         </div>
 
         <button
