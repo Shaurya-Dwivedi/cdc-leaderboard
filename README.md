@@ -6,7 +6,7 @@ Stack: React 19, Vite, TypeScript, Tailwind CSS v4, TanStack Query, Supabase (Po
 
 ## Status
 
-- **Mock mode** (no env vars): fully working, state saved in the browser's `localStorage`. Any admin-login credentials work. Seed data is fake names.
+- **Mock mode** (no env vars): fully working, state saved in the browser's `localStorage`. Any admin-login credentials work. Mock seed data (names and points) is fake demo data.
 - **Supabase mode**: the client and `supabase/schema.sql` are written, but **the schema has not been run on a live project yet**. Treat all SQL (RPCs, `pg_cron` close job, admin linking) as untested until you run it end to end.
 
 ## What it does
@@ -42,11 +42,11 @@ npm run build     # tsc + vite build
 
 1. Create a project. Enable the `pg_cron` extension (Database -> Extensions) first.
 2. Copy `.env.example` to `.env` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-3. Run `supabase/schema.sql` in the SQL editor. It is idempotent (re-runnable), seeds week `w-1` (Monday 00:00 IST) and sample members. Replace the sample members with your real roster.
+3. Run `supabase/schema.sql` in the SQL editor. It is idempotent (re-runnable), seeds week `w-1` (Monday 00:00 IST) and the three admins (Shaurya Dwivedi `m-1`, Sanchit Garg `m-2`, Krish Patel `m-3`). Everyone else is added in the app with **Add Member**.
 4. Authentication -> Providers -> Email: **disable "Allow new users to sign up"**.
 5. Authentication -> Users: create each admin, copy their UUID, then link it:
    ```sql
-   update members set auth_user_id = '<uuid>' where id = 'm-1';
+   update members set auth_user_id = '<uuid>' where id = 'm-1';  -- repeat for m-2, m-3
    ```
    The member's `role` must be `admin`.
 

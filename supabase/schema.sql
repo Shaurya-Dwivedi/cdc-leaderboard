@@ -423,34 +423,12 @@ grant execute on function
 to authenticated;
 
 -- ==============================================================================
--- INITIAL SEED MEMBERS
+-- INITIAL ADMINS (everyone else is added from the app with the Add Member button)
 -- ==============================================================================
 insert into members (id, name, avatar_url, role) values
-  ('m-1', 'Shaurya Dwivedi', 'https://api.dicebear.com/7.x/avataaars/svg?seed=ShauryaDwivedi', 'admin'),
-  ('m-2', 'Priya Sharma', 'https://api.dicebear.com/7.x/avataaars/svg?seed=PriyaSharma', 'admin'),
-  ('m-3', 'Rohan Verma', 'https://api.dicebear.com/7.x/avataaars/svg?seed=RohanVerma', 'admin'),
-  ('m-4', 'Aarav Patel', 'https://api.dicebear.com/7.x/avataaars/svg?seed=AaravPatel', 'viewer'),
-  ('m-5', 'Ananya Iyer', 'https://api.dicebear.com/7.x/avataaars/svg?seed=AnanyaIyer', 'viewer'),
-  ('m-6', 'Vikramaditya Singh', 'https://api.dicebear.com/7.x/avataaars/svg?seed=VikramadityaSingh', 'viewer'),
-  ('m-7', 'Sneha Kulkarni', 'https://api.dicebear.com/7.x/avataaars/svg?seed=SnehaKulkarni', 'viewer'),
-  ('m-8', 'Aditya Nair', 'https://api.dicebear.com/7.x/avataaars/svg?seed=AdityaNair', 'viewer'),
-  ('m-9', 'Pooja Sundaram', 'https://api.dicebear.com/7.x/avataaars/svg?seed=PoojaSundaram', 'viewer'),
-  ('m-10', 'Arjun Reddy', 'https://api.dicebear.com/7.x/avataaars/svg?seed=ArjunReddy', 'viewer'),
-  ('m-11', 'Meera Joshi', 'https://api.dicebear.com/7.x/avataaars/svg?seed=MeeraJoshi', 'viewer'),
-  ('m-12', 'Rahul Deshmukh', 'https://api.dicebear.com/7.x/avataaars/svg?seed=RahulDeshmukh', 'viewer'),
-  ('m-13', 'Kavita Menon', 'https://api.dicebear.com/7.x/avataaars/svg?seed=KavitaMenon', 'viewer'),
-  ('m-14', 'Siddharth Mukherjee', 'https://api.dicebear.com/7.x/avataaars/svg?seed=SiddharthMukherjee', 'viewer'),
-  ('m-15', 'Divya Pillai', 'https://api.dicebear.com/7.x/avataaars/svg?seed=DivyaPillai', 'viewer'),
-  ('m-16', 'Kunal Kapoor', 'https://api.dicebear.com/7.x/avataaars/svg?seed=KunalKapoor', 'viewer'),
-  ('m-17', 'Ritu Bhattacharya', 'https://api.dicebear.com/7.x/avataaars/svg?seed=RituBhattacharya', 'viewer'),
-  ('m-18', 'Harsh Vardhan', 'https://api.dicebear.com/7.x/avataaars/svg?seed=HarshVardhan', 'viewer'),
-  ('m-19', 'Tanvi Hegde', 'https://api.dicebear.com/7.x/avataaars/svg?seed=TanviHegde', 'viewer'),
-  ('m-20', 'Nikhil Agarwal', 'https://api.dicebear.com/7.x/avataaars/svg?seed=NikhilAgarwal', 'viewer'),
-  ('m-21', 'Ishita Gupta', 'https://api.dicebear.com/7.x/avataaars/svg?seed=IshitaGupta', 'viewer'),
-  ('m-22', 'Pranav Rao', 'https://api.dicebear.com/7.x/avataaars/svg?seed=PranavRao', 'viewer'),
-  ('m-23', 'Neha Chawla', 'https://api.dicebear.com/7.x/avataaars/svg?seed=NehaChawla', 'viewer'),
-  ('m-24', 'Varun Sengupta', 'https://api.dicebear.com/7.x/avataaars/svg?seed=VarunSengupta', 'viewer'),
-  ('m-25', 'Swati Nambiar', 'https://api.dicebear.com/7.x/avataaars/svg?seed=SwatiNambiar', 'viewer')
+  ('m-1', 'Shaurya Dwivedi', '', 'admin'),
+  ('m-2', 'Sanchit Garg', '', 'admin'),
+  ('m-3', 'Krish Patel', '', 'admin')
 on conflict (id) do nothing;
 
 -- ==============================================================================
@@ -481,4 +459,6 @@ where not exists (select 1 from weeks);
 -- LINK ADMINS TO LOGINS (run once per admin after creating them under
 -- Supabase Dashboard -> Authentication -> Users; copy the user's UUID)
 -- ==============================================================================
--- update members set auth_user_id = '<auth-user-uuid>' where id = 'm-1';
+-- update members set auth_user_id = '<uuid>' where id = 'm-1'; -- Shaurya Dwivedi
+-- update members set auth_user_id = '<uuid>' where id = 'm-2'; -- Sanchit Garg
+-- update members set auth_user_id = '<uuid>' where id = 'm-3'; -- Krish Patel
