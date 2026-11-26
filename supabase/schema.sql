@@ -49,6 +49,14 @@ create index if not exists idx_point_entries_week_member on point_entries(week_i
 create index if not exists idx_point_entries_created_at on point_entries(created_at desc);
 create index if not exists idx_point_entries_reverts on point_entries(reverts_id);
 
+-- Per-member-per-week aggregate so clients never download the whole ledger.
+-- reached_at = last entry time (the tie-break "reached this score first").
+create or replace view member_week_totals with (security_invoker = true) as
+  select member_id, week_id, sum(delta)::int as total, max(created_at) as reached_at
+  from point_entries
+  group by member_id, week_id;
+grant select on member_week_totals to anon, authenticated;
+
 -- 6. Weekly Results (Snapshot for closed weeks)
 create table if not exists weekly_results (
   id uuid primary key default uuid_generate_v4(),

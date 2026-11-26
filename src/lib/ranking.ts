@@ -21,48 +21,64 @@ function tieBreakCompare(a: MemberScore, b: MemberScore): number {
   return a.memberName.localeCompare(b.memberName);
 }
 
+/** Aggregated points for one member in one week (what the DB view returns). */
+export interface MemberTotal {
+  memberId: string;
+  weekId: string;
+  total: number;
+  /** ISO timestamp of the member's last entry that week */
+  reachedAt: string;
+}
+
+/** Collapse a raw ledger into per-member-per-week totals. */
+export function entriesToTotals(entries: PointEntry[]): MemberTotal[] {
+  const map = new Map<string, MemberTotal>();
+  for (const e of entries) {
+    const key = `${e.memberId}|${e.weekId}`;
+    const cur = map.get(key);
+    if (!cur) {
+      map.set(key, { memberId: e.memberId, weekId: e.weekId, total: e.delta, reachedAt: e.createdAt });
+    } else {
+      cur.total += e.delta;
+      if (e.createdAt > cur.reachedAt) cur.reachedAt = e.createdAt;
+    }
+  }
+  return [...map.values()];
+}
+
 /**
- * Compute ranked leaderboard from point entries and members.
- * Entries with revertsId are still counted — the revert itself is a compensating entry
- * (negative delta) rather than a deletion.
+ * Rank members from per-week totals. Omit weekId to sum across all weeks.
+ * Members with no totals rank at 0 points.
  */
-export function computeRankings(
-  entries: PointEntry[],
+export function computeRankingsFromTotals(
+  totals: MemberTotal[],
   members: Member[],
   weekId?: string,
 ): LeaderboardEntry[] {
-  // Filter entries by week if specified
-  const filtered = weekId ? entries.filter((e) => e.weekId === weekId) : entries;
-
-  // Accumulate points per member and track when they reached their current total
   const scores = new Map<string, { total: number; reachedAt: string }>();
-
-  // Sort entries by createdAt to correctly track "reachedAt"
-  const sorted = [...filtered].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-  );
-
-  for (const entry of sorted) {
-    const current = scores.get(entry.memberId) ?? { total: 0, reachedAt: entry.createdAt };
-    current.total += entry.delta;
-    current.reachedAt = entry.createdAt; // last change = when they reached current total
-    scores.set(entry.memberId, current);
+  for (const t of totals) {
+    if (weekId && t.weekId !== weekId) continue;
+    const cur = scores.get(t.memberId);
+    if (!cur) {
+      scores.set(t.memberId, { total: t.total, reachedAt: t.reachedAt });
+    } else {
+      cur.total += t.total;
+      if (t.reachedAt > cur.reachedAt) cur.reachedAt = t.reachedAt;
+    }
   }
 
   // Build score list for all members (include members with 0 points)
-  const scoreList: MemberScore[] = [];
-  for (const member of members) {
+  const scoreList: MemberScore[] = members.map((member) => {
     const score = scores.get(member.id);
-    scoreList.push({
+    return {
       memberId: member.id,
       memberName: member.name,
       memberAvatar: member.avatarUrl,
       totalPoints: score?.total ?? 0,
       reachedAt: score?.reachedAt ?? new Date(0).toISOString(),
-    });
-  }
+    };
+  });
 
-  // Sort with tie-break
   scoreList.sort(tieBreakCompare);
 
   // Assign ranks (tied members share the same rank)
@@ -83,6 +99,18 @@ export function computeRankings(
   }
 
   return result;
+}
+
+/**
+ * Compute ranked leaderboard from raw point entries (used by the mock API).
+ * Revert entries are counted as ordinary negative-delta entries.
+ */
+export function computeRankings(
+  entries: PointEntry[],
+  members: Member[],
+  weekId?: string,
+): LeaderboardEntry[] {
+  return computeRankingsFromTotals(entriesToTotals(entries), members, weekId);
 }
 
 /**
