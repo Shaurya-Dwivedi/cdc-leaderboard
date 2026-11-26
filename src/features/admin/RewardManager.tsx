@@ -1,11 +1,57 @@
 import { useState, useMemo } from 'react';
 import { Modal } from '../../shared/ui/Modal';
-import { useRewards, useMarkRewardDelivered } from '../../hooks/useRewards';
+import { useRewards, useMarkRewardDelivered, useRewardTiers, useSetRewardTiers } from '../../hooks/useRewards';
 import { useMembers } from '../../hooks/useMembers';
 import { useWeeks } from '../../hooks/useWeeks';
 import { Avatar } from '../../shared/ui/Avatar';
 import { Gift, CheckCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import type { RewardTier } from '../../types';
+
+function TierEditor({ tiers }: { tiers: RewardTier[] }) {
+  const setTiers = useSetRewardTiers();
+  const [draft, setDraft] = useState<Record<number, string>>(() =>
+    Object.fromEntries(tiers.map((t) => [t.place, t.label])),
+  );
+  const changed = tiers
+    .map((t) => ({ place: t.place, label: (draft[t.place] ?? '').trim(), old: t.label }))
+    .filter((t) => t.label !== '' && t.label !== t.old);
+
+  return (
+    <div className="rounded-xl border border-border bg-surface-secondary/30 p-3.5 space-y-2.5">
+      <p className="text-xs font-semibold text-text-primary">Reward for each place</p>
+      {tiers.map((t) => (
+        <label key={t.place} className="flex items-center gap-2 text-xs">
+          <span className="w-8 font-display font-bold text-text-muted">#{t.place}</span>
+          <input
+            type="text"
+            maxLength={120}
+            value={draft[t.place] ?? ''}
+            onChange={(e) => setDraft((d) => ({ ...d, [t.place]: e.target.value }))}
+            className="flex-1 px-3 py-1.5 rounded-lg border border-border bg-surface-card text-text-primary focus:outline-none focus:border-accent"
+          />
+        </label>
+      ))}
+      <div className="flex items-center justify-between pt-1">
+        <span className="text-[11px] text-text-muted">
+          Applies to rewards created from now on. Already-awarded rewards keep their text.
+        </span>
+        <button
+          onClick={() => setTiers.mutate(changed)}
+          disabled={changed.length === 0 || setTiers.isPending}
+          className={cn(
+            'px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors',
+            changed.length === 0 || setTiers.isPending
+              ? 'bg-surface-secondary text-text-muted cursor-not-allowed'
+              : 'bg-accent text-white hover:bg-accent-hover',
+          )}
+        >
+          {setTiers.isPending ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 interface RewardManagerProps {
   open: boolean;
@@ -16,6 +62,7 @@ export function RewardManager({ open, onClose }: RewardManagerProps) {
   const { data: rewards = [], isLoading } = useRewards();
   const { data: members = [] } = useMembers();
   const { data: weeks = [] } = useWeeks();
+  const { data: tiers = [] } = useRewardTiers();
   const markDeliveredMutation = useMarkRewardDelivered();
 
   const [selectedWeekId, setSelectedWeekId] = useState<string>('');
@@ -37,6 +84,8 @@ export function RewardManager({ open, onClose }: RewardManagerProps) {
   return (
     <Modal open={open} onClose={onClose} title="Weekly Rewards Fulfillment" size="lg">
       <div className="space-y-4">
+        {tiers.length > 0 && <TierEditor key={tiers.map((t) => t.label).join('|')} tiers={tiers} />}
+
         {/* Week Selector */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-text-muted">

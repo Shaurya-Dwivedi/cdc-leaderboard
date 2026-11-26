@@ -33,6 +33,7 @@ let weeks: Week[] = [...SEED_WEEKS];
 let pointEntries: PointEntry[] = [...SEED_POINT_ENTRIES];
 let rewards: Reward[] = [...SEED_REWARDS];
 let weeklyResults: WeeklyResult[] = [];
+let rewardTiers: RewardTier[] = Object.entries(CONFIG.REWARDS).map(([place, r]) => ({ place: Number(place), label: r.label }));
 
 // Persist mock state across refreshes. Bump the key if seed data or shapes change.
 const STORAGE_KEY = 'cdc-mock-state-v1';
@@ -47,6 +48,7 @@ try {
     if (open && new Date(open.endAt).getTime() > Date.now()) {
       ({ weeks, pointEntries, rewards, weeklyResults } = state);
       if (state.members) members = state.members;
+      if (state.rewardTiers) rewardTiers = state.rewardTiers;
     }
   }
 } catch {
@@ -55,7 +57,7 @@ try {
 
 function persist() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ members, weeks, pointEntries, rewards, weeklyResults }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ members, rewardTiers, weeks, pointEntries, rewards, weeklyResults }));
   } catch {
     // storage full or blocked: state just won't survive a refresh
   }
@@ -101,6 +103,7 @@ export class MockApiClient implements ApiClient {
     // Save after every successful write.
     for (const name of [
       'addMember',
+      'setRewardTier',
       'awardPoints',
       'bulkAwardPoints',
       'revertEntry',
@@ -423,7 +426,19 @@ export class MockApiClient implements ApiClient {
    * Running twice never double-awards rewards. Safe if run late.
    */
   async getRewardTiers(): Promise<RewardTier[]> {
-    return Object.entries(CONFIG.REWARDS).map(([place, r]) => ({ place: Number(place), label: r.label }));
+    return rewardTiers.map((t) => ({ ...t }));
+  }
+
+  async setRewardTier(place: number, label: string): Promise<RewardTier> {
+    checkRateLimit();
+    await simulateLatency(100, 200);
+    const clean = label.trim();
+    if (![1, 2, 3].includes(place)) throw new Error('Place must be 1, 2 or 3');
+    if (clean === '' || clean.length > 120) throw new Error('Reward text must be 1-120 characters');
+    const tier = rewardTiers.find((t) => t.place === place);
+    if (tier) tier.label = clean;
+    else rewardTiers.push({ place, label: clean });
+    return { place, label: clean };
   }
 
   async closeWeek(weekId: string): Promise<Week> {
@@ -466,7 +481,7 @@ export class MockApiClient implements ApiClient {
           (r) => r.weekId === week.id && r.place === place && r.memberId === winner.memberId,
         );
         if (!existingReward) {
-          const rewardConfig = CONFIG.REWARDS[place];
+          const rewardConfig = rewardTiers.find((t) => t.place === place);
           rewards.push({
             id: `rew-${week.id}-${place}`,
             weekId: week.id,

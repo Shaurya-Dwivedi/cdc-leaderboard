@@ -291,6 +291,12 @@ export class SupabaseApiClient implements ApiClient {
     }));
   }
 
+  async setRewardTier(place: number, label: string): Promise<RewardTier> {
+    const { data, error } = await this.supabase.rpc('set_reward_tier', { p_place: place, p_label: label });
+    if (error) throw new Error(error.message);
+    return { place: data.place, label: data.label };
+  }
+
   async getRewardTiers(): Promise<RewardTier[]> {
     const { data, error } = await this.supabase.from('reward_tiers').select('place, label').order('place');
     if (error) throw new Error(error.message);

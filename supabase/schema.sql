@@ -423,6 +423,27 @@ begin
 end;
 $$;
 
+-- Edit the reward text for a podium place (affects rewards created from now on).
+create or replace function set_reward_tier(p_place integer, p_label text) returns reward_tiers
+language plpgsql security definer set search_path = public as $$
+declare
+  v_label text := trim(coalesce(p_label, ''));
+  v_row reward_tiers;
+begin
+  perform require_admin();
+  if p_place is null or p_place not in (1, 2, 3) then
+    raise exception 'Place must be 1, 2 or 3';
+  end if;
+  if v_label = '' or length(v_label) > 120 then
+    raise exception 'Reward text must be 1-120 characters';
+  end if;
+  insert into reward_tiers (place, label) values (p_place, v_label)
+  on conflict (place) do update set label = excluded.label
+  returning * into v_row;
+  return v_row;
+end;
+$$;
+
 -- Only signed-in admins may call write RPCs; helpers are internal-only.
 revoke execute on function
   current_admin_id(), require_admin(), current_admin(),
@@ -430,7 +451,8 @@ revoke execute on function
   award_points(text, integer, text, text, text),
   bulk_award_points(text[], integer, text, text, text),
   revert_entry(text), mark_reward_delivered(text),
-  reopen_week(text, text), close_week(text), add_member(text)
+  reopen_week(text, text), close_week(text), add_member(text),
+  set_reward_tier(integer, text)
 from public, anon, authenticated;
 grant execute on function server_now() to anon, authenticated;
 grant execute on function
@@ -438,7 +460,8 @@ grant execute on function
   award_points(text, integer, text, text, text),
   bulk_award_points(text[], integer, text, text, text),
   revert_entry(text), mark_reward_delivered(text),
-  reopen_week(text, text), close_week(text), add_member(text)
+  reopen_week(text, text), close_week(text), add_member(text),
+  set_reward_tier(integer, text)
 to authenticated;
 
 -- ==============================================================================
