@@ -3,6 +3,7 @@ import { PodiumColumn } from './PodiumColumn';
 import { PodiumSkeleton } from '../../shared/ui/Skeleton';
 import type { LeaderboardEntry } from '../../types';
 import { useMemo } from 'react';
+import { splitPodium } from '../../lib/ranking';
 
 interface PodiumProps {
   entries: LeaderboardEntry[] | undefined;
@@ -12,14 +13,7 @@ interface PodiumProps {
 export function Podium({ entries, isLoading }: PodiumProps) {
   if (isLoading) return <PodiumSkeleton />;
 
-  // Get top 3 (handling ties — multiple people can be rank 1, 2, or 3)
-  const podiumEntries = useMemo(() => {
-    if (!entries || entries.length === 0) return [null, null, null] as const;
-    const first = entries.find((e) => e.rank === 1) ?? null;
-    const second = entries.find((e) => e.rank === 2) ?? null;
-    const third = entries.find((e) => e.rank === 3) ?? null;
-    return [first, second, third] as const;
-  }, [entries]);
+  const podiumEntries = useMemo(() => splitPodium(entries).podium, [entries]);
 
   // Use member IDs as key so podium re-animates on data change
   const animKey = podiumEntries.map((e) => e?.memberId ?? 'empty').join('-');

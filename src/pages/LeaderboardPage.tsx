@@ -37,6 +37,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { splitPodium } from '../lib/ranking';
 import type { LeaderboardScope } from '../types';
 
 const PLACE_STYLE: Record<number, { icon: string; name: string; color: string }> = {
@@ -328,7 +329,7 @@ export function LeaderboardPage() {
                 <div className="flex items-center justify-between pb-3 border-b border-border">
                   <div>
                     <h3 className="font-display font-bold text-sm uppercase tracking-wider text-text-primary">
-                      Ranked Members ({entries ? Math.max(0, entries.length - 3) : 0})
+                      Ranked Members ({splitPodium(entries).rest.length})
                     </h3>
                     <p className="text-[11px] text-text-muted">
                       Tie-break rule: Higher points → Earliest time reached → Alphabetical order.

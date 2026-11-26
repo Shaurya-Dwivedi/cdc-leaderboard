@@ -6,6 +6,7 @@ import { StickyYouBar } from './StickyYouBar';
 import { RowSkeleton } from '../../shared/ui/Skeleton';
 import { EmptyState } from '../../shared/ui/EmptyState';
 import { Users } from 'lucide-react';
+import { splitPodium } from '../../lib/ranking';
 import type { LeaderboardEntry, LeaderboardScope } from '../../types';
 
 interface RankedListProps {
@@ -22,11 +23,8 @@ export function RankedList({ entries, isLoading, scope, onAwardPoints }: RankedL
   const [page, setPage] = useState(1);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Filter to rank 4+ (podium handles top 3)
-  const listEntries = useMemo(() => {
-    if (!entries) return [];
-    return entries.filter((e) => e.rank > 3);
-  }, [entries]);
+  // Everyone the podium does not show (includes members tied into places 1-3)
+  const listEntries = useMemo(() => splitPodium(entries).rest, [entries]);
 
   const filtered = useMemo(() => {
     if (!search) return listEntries;
