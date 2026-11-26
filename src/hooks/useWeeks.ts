@@ -15,7 +15,11 @@ export function useCurrentWeek() {
   const query = useQuery({
     queryKey: ['currentWeek'],
     queryFn: () => getApiClient().getCurrentWeek(),
-    refetchInterval: 60_000, // refresh server time every minute
+    // Every minute; every 5s once the week has ended, until the scheduler opens the next one.
+    refetchInterval: (q) =>
+      q.state.data && new Date(q.state.data.week.endAt).getTime() <= Date.now() + serverOffset
+        ? 5_000
+        : 60_000,
   });
 
   useEffect(() => {
