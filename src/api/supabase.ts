@@ -17,7 +17,7 @@ import type {
   Member,
   WeekWithWinners,
 } from '../types';
-import { computeRankings, computeDeltas } from '../lib/ranking';
+import { computeRankingsFromTotals, computeDeltas, type MemberTotal } from '../lib/ranking';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapEntry(e: any): PointEntry {
@@ -44,6 +44,20 @@ function mapWeek(w: any): Week {
     status: w.status,
     closedAt: w.closed_at,
   };
+}
+
+// One row per member per week (view member_week_totals) instead of the raw ledger.
+async function fetchTotals(supabase: SupabaseClient): Promise<MemberTotal[]> {
+  const { data, error } = await supabase
+    .from('member_week_totals')
+    .select('member_id, week_id, total, reached_at');
+  if (error) throw new Error(error.message);
+  return (data || []).map((t) => ({
+    memberId: t.member_id,
+    weekId: t.week_id,
+    total: t.total,
+    reachedAt: t.reached_at,
+  }));
 }
 
 export class SupabaseApiClient implements ApiClient {
@@ -125,20 +139,15 @@ export class SupabaseApiClient implements ApiClient {
   }
 
   async getLeaderboard(scope: LeaderboardScope, weekId?: string): Promise<LeaderboardEntry[]> {
-    const members = await this.getMembers();
-    const { data: entries, error } = await this.supabase
-      .from('point_entries')
-      .select('*');
-
-    if (error) throw new Error(error.message);
-
-    const pointEntries = (entries || []).map(mapEntry);
-
-    const currentWeekRes = await this.getCurrentWeek();
+    const [members, totals, currentWeekRes] = await Promise.all([
+      this.getMembers(),
+      fetchTotals(this.supabase),
+      this.getCurrentWeek(),
+    ]);
     const targetWeekId = weekId || currentWeekRes.week.id;
 
     if (scope === 'weekly') {
-      const currentRankings = computeRankings(pointEntries, members, targetWeekId);
+      const currentRankings = computeRankingsFromTotals(totals, members, targetWeekId);
 
       // Deltas vs the chronologically previous week (same as mock).
       const { data: allWeeks, error: wErr } = await this.supabase
@@ -148,26 +157,23 @@ export class SupabaseApiClient implements ApiClient {
       if (wErr) throw new Error(wErr.message);
       const idx = (allWeeks || []).findIndex((w) => w.id === targetWeekId);
       if (idx > 0) {
-        const prev = computeRankings(pointEntries, members, allWeeks![idx - 1].id);
+        const prev = computeRankingsFromTotals(totals, members, allWeeks![idx - 1].id);
         return computeDeltas(currentRankings, prev);
       }
       return currentRankings;
     }
 
     // scope === 'alltime'
-    const allTimeRankings = computeRankings(pointEntries, members);
+    const allTimeRankings = computeRankingsFromTotals(totals, members);
     const weeklyPointsMap = new Map<string, number>();
-    for (const entry of pointEntries) {
-      if (entry.weekId === targetWeekId) {
-        weeklyPointsMap.set(
-          entry.memberId,
-          (weeklyPointsMap.get(entry.memberId) || 0) + entry.delta,
-        );
-      }
+    for (const t of totals) {
+      if (t.weekId === targetWeekId) weeklyPointsMap.set(t.memberId, t.total);
     }
 
-    const priorEntries = pointEntries.filter((e) => e.weekId !== targetWeekId);
-    const priorRankings = computeRankings(priorEntries, members);
+    const priorRankings = computeRankingsFromTotals(
+      totals.filter((t) => t.weekId !== targetWeekId),
+      members,
+    );
     const withDeltas = computeDeltas(allTimeRankings, priorRankings);
 
     return withDeltas.map((entry) => ({

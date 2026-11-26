@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getWeekBoundary, getTimeRemaining } from '../week';
-import { computeRankings, computeDeltas } from '../ranking';
+import { computeRankings, computeRankingsFromTotals, entriesToTotals, computeDeltas } from '../ranking';
 import { mockApiClient } from '../../api/mock';
 import type { PointEntry, Member } from '../../types';
 
@@ -245,5 +245,31 @@ describe('4. Idempotent Week Closing & Rewards Snapshotting', () => {
 
     const rewardsAfterSecond = await mockApiClient.getRewards(weekId);
     expect(rewardsAfterSecond.length).toBe(initialRewardCount);
+  });
+});
+
+describe('Ranking from aggregated totals (DB view rows)', () => {
+  const members: Member[] = [
+    { id: 'm-1', name: 'Alice', avatarUrl: '', role: 'viewer' },
+    { id: 'm-2', name: 'Bob', avatarUrl: '', role: 'viewer' },
+  ];
+  const mk = (id: string, memberId: string, weekId: string, delta: number, createdAt: string): PointEntry => ({
+    id, memberId, weekId, delta, reasonCategory: 'Ticket Resolved', createdBy: 'admin', createdAt,
+  });
+  const entries = [
+    mk('1', 'm-1', 'w-1', 20, '2026-11-01T10:00:00Z'),
+    mk('2', 'm-2', 'w-1', 10, '2026-11-01T11:00:00Z'),
+    mk('3', 'm-2', 'w-2', 10, '2026-11-08T09:00:00Z'),
+  ];
+
+  it('matches raw-ledger ranking for weekly and all-time, incl. tie-break', () => {
+    const totals = entriesToTotals(entries);
+    expect(totals).toHaveLength(3);
+    for (const wk of ['w-1', 'w-2', undefined]) {
+      expect(computeRankingsFromTotals(totals, members, wk)).toEqual(computeRankings(entries, members, wk));
+    }
+    // all-time tie at 20: Alice reached it first
+    const all = computeRankingsFromTotals(totals, members);
+    expect(all.map((r) => [r.memberId, r.rank])).toEqual([['m-1', 1], ['m-2', 1]]);
   });
 });
