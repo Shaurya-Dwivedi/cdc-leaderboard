@@ -276,26 +276,24 @@ describe('Ranking from aggregated totals (DB view rows)', () => {
 
 describe('splitPodium', () => {
   const e = (memberId: string, rank: number, totalPoints = 10) => ({ rank, memberId, memberName: memberId, memberAvatar: '', totalPoints });
+  const ids = (xs: { memberId: string }[]) => xs.map((x) => x.memberId);
 
-  it('lists members tied into a podium place instead of hiding them', () => {
-    // three members tied for 3rd share rank 3
-    const entries = [e('a', 1), e('b', 2), e('c', 3), e('d', 3), e('f', 3)];
-    const { podium, rest } = splitPodium(entries);
-    expect(podium.map((p) => p?.memberId)).toEqual(['a', 'b', 'c']);
-    expect(rest.map((r) => r.memberId)).toEqual(['d', 'f']);
+  it('puts every member tied for a podium place on the podium', () => {
+    // two tied for 1st, then 3rd, then 4th
+    const { podium, rest } = splitPodium([e('a', 1, 30), e('b', 1, 30), e('c', 3), e('d', 4)]);
+    expect(ids(podium)).toEqual(['a', 'b', 'c']);
+    expect(ids(rest)).toEqual(['d']);
   });
 
-  it('shows every member exactly once, even with a tie for first', () => {
-    const entries = [e('a', 1), e('b', 1), e('c', 3), e('d', 4)];
-    const { podium, rest } = splitPodium(entries);
-    expect(podium.map((p) => p?.memberId)).toEqual(['a', undefined, 'c']);
-    expect(rest.map((r) => r.memberId)).toEqual(['b', 'd']);
+  it('keeps all members tied for 3rd on the podium', () => {
+    const { podium, rest } = splitPodium([e('a', 1), e('b', 2), e('c', 3), e('d', 3), e('f', 3)]);
+    expect(ids(podium)).toEqual(['a', 'b', 'c', 'd', 'f']);
+    expect(rest).toEqual([]);
   });
 
-  it('leaves unearned places empty: members on 0 points never take a podium slot', () => {
-    const entries = [e('a', 1, 25), e('b', 2, 10), e('c', 3, 0), e('d', 3, 0), e('f', 3, 0)];
-    const { podium, rest } = splitPodium(entries);
-    expect(podium.map((p) => p?.memberId)).toEqual(['a', 'b', undefined]);
-    expect(rest.map((r) => r.memberId)).toEqual(['c', 'd', 'f']);
+  it('members on 0 points never take a podium slot', () => {
+    const { podium, rest } = splitPodium([e('a', 1, 25), e('b', 2, 10), e('c', 3, 0), e('d', 3, 0)]);
+    expect(ids(podium)).toEqual(['a', 'b']);
+    expect(ids(rest)).toEqual(['c', 'd']);
   });
 });
