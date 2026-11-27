@@ -1,6 +1,7 @@
-import { MotionConfig } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { PodiumColumn } from './PodiumColumn';
-import { PodiumSkeleton } from '../../shared/ui/Skeleton';
+import { RowSkeleton } from '../../shared/ui/Skeleton';
+import { staggerDelay } from './board/motion';
 import type { LeaderboardEntry } from '../../types';
 import { splitPodium } from '../../lib/ranking';
 
@@ -10,12 +11,19 @@ interface PodiumProps {
 }
 
 type Place = 1 | 2 | 3;
-const DELAY: Record<Place, number> = { 1: 0, 2: 0.15, 3: 0.25 };
 
 export function Podium({ entries, isLoading }: PodiumProps) {
-  if (isLoading) return <PodiumSkeleton />;
+  if (isLoading) {
+    return (
+      <div className="space-y-4 py-4">
+        {[0, 1, 2].map((i) => (
+          <RowSkeleton key={i} />
+        ))}
+      </div>
+    );
+  }
 
-  // One column per member: tied members share a place. Places beyond the member count
+  // One line per member: tied members share a place. Places beyond the member count
   // (e.g. 3rd when two share 1st) stay empty placeholders.
   const slots: { entry: LeaderboardEntry | null; place: Place }[] = splitPodium(entries).podium.map(
     (entry) => ({ entry, place: entry.rank as Place }),
@@ -25,30 +33,18 @@ export function Podium({ entries, isLoading }: PodiumProps) {
     if (place > filled) slots.push({ entry: null, place });
   }
 
-  // Classic 2-1-3 layout when every place is distinct, otherwise plain rank order.
-  const distinct = slots.length === 3 && slots.every((s, i) => s.place === i + 1);
-  const ordered = distinct ? [slots[1], slots[0], slots[2]] : slots;
-
-  // Re-animate whenever who holds the podium changes
-  const animKey = ordered.map((s) => s.entry?.memberId ?? `empty-${s.place}`).join('-');
-
   return (
-    <MotionConfig reducedMotion="user">
-      <div
-        key={animKey}
-        className="flex flex-wrap items-end justify-center gap-2 md:gap-4 py-6"
-        role="region"
-        aria-label="Top 3 podium"
-      >
-        {ordered.map((s) => (
+    <div role="region" aria-label="Top 3 podium">
+      <AnimatePresence mode="popLayout">
+        {slots.map((s, i) => (
           <PodiumColumn
             key={s.entry?.memberId ?? `empty-${s.place}`}
             entry={s.entry}
             place={s.place}
-            delay={DELAY[s.place]}
+            delay={staggerDelay(i)}
           />
         ))}
-      </div>
-    </MotionConfig>
+      </AnimatePresence>
+    </div>
   );
 }

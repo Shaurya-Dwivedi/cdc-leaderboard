@@ -1,0 +1,384 @@
+/*
+ * "Results board" look for LeaderboardPage. Every selector is under .rb (the page root),
+ * so nothing reaches other routes or the Toaster, which renders outside the page.
+ */
+
+/* This file can load before index.css; pin Tailwind's layer order so preflight stays lowest. */
+@layer theme, base, components, utilities;
+
+.rb {
+  /* Dark is the app default; html.light switches to paper. */
+  --rb-paper: #14130F;
+  --rb-ink: #ECE7DB;
+  --rb-muted: color-mix(in srgb, var(--rb-ink) 60%, var(--rb-paper));
+  --rb-rule: color-mix(in srgb, var(--rb-ink) 20%, var(--rb-paper));
+  --rb-accent: #C8411E;
+  --rb-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --rb-margin: 3.75rem; /* rank column + gap: rules start where the text starts */
+
+  /* Point the app's Tailwind tokens at the board palette, so every utility inside
+     the page (admin modals included) draws from these five colours only. */
+  --color-surface: var(--rb-paper);
+  --color-surface-card: var(--rb-paper);
+  --color-surface-secondary: var(--rb-rule);
+  --color-text-primary: var(--rb-ink);
+  --color-text-muted: var(--rb-muted);
+  --color-border: var(--rb-rule);
+  --color-accent: var(--rb-accent);
+  --color-accent-hover: var(--rb-accent);
+  --color-gold: var(--rb-accent);
+  --color-silver: var(--rb-ink);
+  --color-bronze: var(--rb-ink);
+  --color-positive: var(--rb-ink);
+  --color-negative: var(--rb-ink);
+  --color-white: var(--rb-paper);
+  --color-black: var(--rb-paper);
+  --color-red-500: var(--rb-ink);
+  --color-red-600: var(--rb-ink);
+  --color-orange-500: var(--rb-ink);
+  --color-amber-500: var(--rb-ink);
+  --color-emerald-500: var(--rb-ink);
+  --color-teal-500: var(--rb-ink);
+  --color-cyan-500: var(--rb-ink);
+  --color-blue-500: var(--rb-ink);
+  --color-violet-500: var(--rb-ink);
+  --color-fuchsia-500: var(--rb-ink);
+  --color-rose-500: var(--rb-ink);
+  /* The app's .font-display / .font-body classes (modals use them) resolve to board type */
+  --font-display: 'Martian Mono', ui-monospace, monospace;
+  --font-body: 'Schibsted Grotesk', system-ui, sans-serif;
+
+  min-height: 100vh;
+  background-color: var(--rb-paper);
+  color: var(--rb-ink);
+  font-family: 'Schibsted Grotesk', system-ui, sans-serif;
+}
+
+html.light .rb {
+  --rb-paper: #F1EDE4;
+  --rb-ink: #1A1813;
+  --rb-muted: #6E6A60;
+  --rb-rule: #D6D0C2;
+}
+
+/* ---- Banned treatments, removed for everything inside the page ---- */
+.rb,
+.rb *,
+.rb *::before,
+.rb *::after {
+  background-image: none;
+  box-shadow: none;
+  text-shadow: none;
+  backdrop-filter: none;
+}
+.rb *:not(.rounded-full) {
+  border-radius: 0;
+}
+/* Modals: primary buttons go ink-on-paper; accent stays on borders only (small accent text fails AA). */
+.rb .bg-accent.text-white {
+  background-color: var(--rb-ink);
+}
+.rb [role='dialog'] {
+  border-color: var(--rb-ink);
+}
+.rb [role='dialog'] .text-accent {
+  color: var(--rb-ink);
+}
+/* Field outlines need 3:1 against paper; the hairline is decoration only. */
+.rb input,
+.rb select,
+.rb textarea {
+  border-color: var(--rb-muted);
+}
+
+/* ---- Type ---- */
+/* Combinable with utilities (text colour, weight), so these live in the components layer. */
+@layer components {
+.rb-num {
+  font-family: 'Martian Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.rb-serif {
+  font-family: 'Young Serif', Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.rb-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--rb-muted);
+}
+
+/* ---- Buttons ---- */
+.rb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--rb-ink);
+  text-underline-offset: 4px;
+}
+.rb-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.rb-btn:disabled {
+  opacity: 0.5;
+}
+.rb-btn-primary {
+  background-color: var(--rb-ink);
+  color: var(--rb-paper);
+}
+.rb-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--rb-muted);
+}
+.rb-btn-icon:hover {
+  color: var(--rb-ink);
+}
+}
+
+/* ---- Ledger rows ----
+ * <640: two lines (rank | name / points + stats), tap to expand.
+ * 640-1023: one line (rank | name | points), secondary stats in the expand.
+ * >=1024: full ledger columns. */
+.rb-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) 2.75rem;
+  grid-template-areas:
+    'rank name act'
+    'rank meta act';
+  column-gap: 0.75rem;
+  align-items: center;
+}
+.rb-row {
+  padding: 0.625rem 0;
+}
+.rb-row.rb-top {
+  padding: 1.25rem 0;
+}
+.rb-rank {
+  grid-area: rank;
+  align-self: start;
+  text-align: right;
+  line-height: 1;
+  padding-top: 0.15em;
+}
+.rb-name {
+  grid-area: name;
+}
+.rb-meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 1rem;
+  font-size: 0.8125rem;
+}
+.rb-meta > :empty {
+  display: none;
+}
+.rb-act {
+  grid-area: act;
+  justify-self: end;
+}
+.rb-details {
+  grid-column: 2 / -1;
+}
+.rb-unit {
+  margin-left: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--rb-muted);
+}
+
+/* Hairline under each row, starting at the name column; hover lays a 2px ink rule over it. */
+.rb-row::after,
+.rb-row::before {
+  content: '';
+  position: absolute;
+  left: var(--rb-margin);
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+.rb-row::after {
+  height: 1px;
+  background-color: var(--rb-rule);
+}
+.rb-row::before {
+  z-index: 1;
+  height: 2px;
+  background-color: var(--rb-ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  opacity: 0;
+  transition:
+    transform 260ms var(--rb-ease),
+    opacity 260ms var(--rb-ease);
+}
+.rb-row:hover::before,
+.rb-row:focus-within::before {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+/* Selected (expanded) row: an accent rule slides in from the left of the name column. */
+.rb-mark {
+  position: absolute;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  left: calc(var(--rb-margin) - 0.5rem);
+  width: 2px;
+  background-color: var(--rb-accent);
+  transform: translateX(-0.5rem);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 260ms var(--rb-ease),
+    opacity 260ms var(--rb-ease);
+}
+.rb-row[data-open] .rb-mark,
+.rb-row[data-highlight] .rb-mark {
+  transform: none;
+  opacity: 1;
+}
+
+.rb-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.75rem;
+  text-align: left;
+}
+.rb-you {
+  flex-shrink: 0;
+  border: 1px solid var(--rb-ink);
+  padding: 0 0.3rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Award action: always visible on touch layouts; on desktop it appears on hover or focus. */
+.rb-award {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--rb-muted);
+}
+.rb-award:hover:not(:disabled) {
+  color: var(--rb-ink);
+}
+.rb-award:disabled {
+  opacity: 0.35;
+}
+
+.rb-colhead {
+  position: sticky; /* below the 3.5rem masthead */
+  top: 3.5rem;
+  z-index: 20;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--rb-muted);
+  background-color: var(--rb-paper);
+  border-bottom: 1px solid var(--rb-ink);
+  padding: 0.5rem 0;
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .rb {
+    --rb-margin: 4.75rem;
+  }
+  .rb-grid {
+    grid-template-columns: 4rem minmax(0, 1fr) 7.5rem 2.75rem;
+    grid-template-areas: 'rank name pts act';
+  }
+  .rb-meta {
+    display: contents;
+  }
+  .rb-rank {
+    align-self: center;
+    padding-top: 0;
+  }
+  .rb-pts {
+    grid-area: pts;
+    text-align: right;
+  }
+  .rb-sec {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .rb {
+    --rb-margin: 5.75rem;
+  }
+  .rb-grid {
+    grid-template-columns: 5rem minmax(0, 1fr) 4.5rem 6.5rem 7.5rem 2.75rem;
+    grid-template-areas: 'rank name move wk pts act';
+  }
+  .rb-colhead {
+    display: grid;
+  }
+  .rb-sec {
+    display: block;
+    text-align: right;
+  }
+  .rb-move {
+    grid-area: move;
+  }
+  .rb-wk {
+    grid-area: wk;
+  }
+  .rb-details,
+  .rb-toggle {
+    display: none;
+  }
+  .rb-award {
+    opacity: 0;
+    transition: opacity 200ms var(--rb-ease);
+  }
+  .rb-row:hover .rb-award,
+  .rb-award:focus-visible {
+    opacity: 1;
+  }
+}
+
+/* ---- Countdown: departure-board flaps ---- */
+.rb-flap {
+  border-top: 1px solid var(--rb-ink);
+  border-bottom: 1px solid var(--rb-ink);
+}
+.rb-flap::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background-color: var(--rb-paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb *,
+  .rb *::before,
+  .rb *::after {
+    transition-duration: 0ms !important;
+  }
+}

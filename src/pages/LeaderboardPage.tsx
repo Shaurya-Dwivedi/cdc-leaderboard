@@ -18,33 +18,22 @@ import { AddMemberModal } from '../features/admin/AddMemberModal';
 import { AuditLog } from '../features/admin/AuditLog';
 import { RewardManager } from '../features/admin/RewardManager';
 import { AdminLoginModal } from '../features/admin/AdminLoginModal';
-import { Avatar } from '../shared/ui/Avatar';
 import { ConfirmDialog } from '../shared/ui/ConfirmDialog';
-import {
-  Trophy,
-  Users,
-  UserPlus,
-  ShieldCheck,
-  Plus,
-  FileText,
-  Gift,
-  Sun,
-  Moon,
-  Flame,
-  CheckCircle2,
-  Lock,
-  Unlock,
-  LogOut,
-} from 'lucide-react';
+import { LayoutGroup, motion } from 'motion/react';
+import { Sun, Moon } from 'lucide-react';
+import { useBoardMotion } from '../features/leaderboard/board/motion';
+import './results-board.css';
 import { cn } from '../lib/utils';
 import { splitPodium } from '../lib/ranking';
 import type { LeaderboardScope } from '../types';
 
-const PLACE_STYLE: Record<number, { icon: string; name: string; color: string }> = {
-  1: { icon: '🥇', name: '1st Place', color: 'text-gold' },
-  2: { icon: '🥈', name: '2nd Place', color: 'text-silver' },
-  3: { icon: '🥉', name: '3rd Place', color: 'text-bronze' },
-};
+const TABS = [
+  { id: 'weekly', label: 'This Week' },
+  { id: 'alltime', label: 'All Time' },
+  { id: 'hall-of-fame', label: 'Hall of Fame' },
+] as const;
+
+const PLACE_NAME: Record<number, string> = { 1: '1st Place', 2: '2nd Place', 3: '3rd Place' };
 
 export function LeaderboardPage() {
   const { user, isAdmin, logout } = useAuth();
@@ -79,6 +68,7 @@ export function LeaderboardPage() {
   const { data: entries, isLoading } = useLeaderboard(leaderboardScope);
 
   const closeWeekMutation = useCloseWeek();
+  const { spring } = useBoardMotion();
   const reopenWeekMutation = useReopenWeek();
 
   const handleTabChange = (tab: 'weekly' | 'alltime' | 'hall-of-fame') => {
@@ -122,189 +112,121 @@ export function LeaderboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface text-text-primary transition-colors pb-24">
-      {/* Top Header / Bar */}
-      <header className="border-b border-border bg-surface-card/80 backdrop-blur sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center text-accent">
-              <Trophy className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-display font-extrabold text-sm md:text-base tracking-tight uppercase">
-                  CDC Support Scoreboard
-                </h1>
-              </div>
-              <p className="text-[11px] text-text-muted hidden sm:block">
-                Weekly & All-Time Engineering Support Impact Leaderboard
-              </p>
-            </div>
+    <div className="rb pb-24">
+      {/* Masthead */}
+      <header className="sticky top-0 z-30 h-14 border-b border-text-primary bg-surface">
+        <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-3 px-4">
+          <div className="min-w-0">
+            <h1 className="rb-serif truncate text-lg leading-none md:text-xl">CDC Support Scoreboard</h1>
+            <p className="rb-eyebrow mt-1 hidden truncate sm:block">
+              Weekly & All-Time Engineering Support Impact Leaderboard
+            </p>
           </div>
 
-          {/* User Profile + Role Toggle + Theme Toggle */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={toggleTheme}
-              className="p-1.5 rounded-lg border border-border bg-surface-secondary/50 text-text-muted hover:text-text-primary transition-colors"
-              title="Toggle Theme"
-              aria-label="Toggle Theme"
-            >
+          <div className="flex shrink-0 items-center">
+            <button onClick={toggleTheme} className="rb-btn-icon" title="Toggle Theme" aria-label="Toggle Theme">
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
 
             {isAdmin ? (
               <>
-                <button
-                  onClick={logout}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 text-xs font-semibold transition-all"
-                  title="Sign out"
-                >
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  <span className="uppercase font-bold">Admin</span>
-                  <LogOut className="h-3.5 w-3.5" />
+                <span className="hidden border-l border-border pl-3 text-xs font-medium md:block">{user.name}</span>
+                <button onClick={logout} className="rb-btn" title="Sign out">
+                  <span className="font-semibold uppercase tracking-[0.12em]">Admin</span>
+                  <span className="text-text-muted">Sign out</span>
                 </button>
-                <div className="flex items-center gap-2 pl-2 border-l border-border">
-                  <Avatar src={user.avatarUrl} name={user.name} size="sm" />
-                  <span className="hidden md:block text-xs font-semibold text-text-primary">
-                    {user.name}
-                  </span>
-                </div>
               </>
             ) : (
-              <button
-                onClick={() => setIsLoginOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-surface-secondary text-text-muted hover:text-text-primary text-xs font-semibold transition-all"
-              >
-                <Lock className="h-3.5 w-3.5" />
-                <span>Admin login</span>
+              <button onClick={() => setIsLoginOpen(true)} className="rb-btn">
+                Admin login
               </button>
             )}
           </div>
         </div>
       </header>
 
-      {/* Hero: Weekly Countdown Timer */}
-      <section className="border-b border-border bg-gradient-to-b from-surface-card to-surface py-6 px-4">
-        <div className="max-w-4xl mx-auto text-center space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-secondary border border-border text-xs text-text-muted">
-            <Flame className="h-3.5 w-3.5 text-accent" />
-            <span>
+      {/* Notice: week status + countdown */}
+      <section className="border-b border-border py-6 md:py-8">
+        <div className="mx-auto flex max-w-6xl flex-col px-4 gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="rb-eyebrow">
               {isReopened && currentWeek
                 ? `Week ${currentWeek.id.replace('w-', '')} reopened for adjustments`
                 : `${currentWeek ? `Week ${currentWeek.id.replace('w-', '')}` : 'This week'} closes Sunday ${CONFIG.WEEK_END_TIME} (${CONFIG.TIMEZONE})`}
-            </span>
+            </p>
+            <p className="rb-serif mt-2 text-3xl md:text-4xl">Closes in</p>
           </div>
 
           <CountdownTimer />
         </div>
       </section>
 
-      {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-4 pt-6 space-y-6">
-        {/* Navigation Tabs + Admin Toolbar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-border pb-4">
-          {/* View Tabs */}
-          <nav className="flex items-center gap-1 bg-surface-card p-1 rounded-xl border border-border self-start">
-            <button
-              onClick={() => handleTabChange('weekly')}
-              className={cn(
-                'px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5',
-                activeTab === 'weekly'
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-text-muted hover:text-text-primary hover:bg-surface-secondary',
-              )}
-            >
-              <span>This Week</span>
-            </button>
-            <button
-              onClick={() => handleTabChange('alltime')}
-              className={cn(
-                'px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5',
-                activeTab === 'alltime'
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-text-muted hover:text-text-primary hover:bg-surface-secondary',
-              )}
-            >
-              <span>All Time</span>
-            </button>
-            <button
-              onClick={() => handleTabChange('hall-of-fame')}
-              className={cn(
-                'px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5',
-                activeTab === 'hall-of-fame'
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-text-muted hover:text-text-primary hover:bg-surface-secondary',
-              )}
-            >
-              <Trophy className="h-3.5 w-3.5" />
-              <span>Hall of Fame</span>
-            </button>
+      <main className="mx-auto max-w-6xl space-y-8 px-4 pt-6">
+        {/* View tabs + admin toolbar */}
+        <div className="flex flex-col gap-3 border-b border-text-primary lg:flex-row lg:items-end lg:justify-between">
+          <nav aria-label="Leaderboard views" className="-mx-4 flex overflow-x-auto px-4 [scrollbar-width:none]">
+            {TABS.map((t) => {
+              const active = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleTabChange(t.id)}
+                  aria-pressed={active}
+                  className={cn(
+                    'relative min-h-11 shrink-0 whitespace-nowrap px-3 text-sm',
+                    active ? 'font-semibold text-text-primary' : 'text-text-muted hover:text-text-primary',
+                  )}
+                >
+                  {t.label}
+                  {active && (
+                    <motion.span
+                      layoutId="rb-tab"
+                      transition={spring}
+                      className="absolute -bottom-px left-3 right-3 h-0.5 bg-accent"
+                    />
+                  )}
+                </button>
+              );
+            })}
           </nav>
 
           {/* Admin Action Bar (Role === Admin only) */}
           {user.role === 'admin' && (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => handleOpenAward()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-bold hover:bg-accent-hover shadow-sm transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Award Points</span>
+            <div className="-mx-4 flex overflow-x-auto px-4 pb-2 [scrollbar-width:none] lg:mx-0 lg:px-0">
+              <button onClick={() => handleOpenAward()} className="rb-btn rb-btn-primary">
+                Award Points
               </button>
-
-              <button
-                onClick={() => setIsBulkAwardOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-card text-text-primary hover:bg-surface-secondary text-xs font-semibold transition-colors"
-              >
-                <Users className="h-3.5 w-3.5 text-text-muted" />
-                <span>Bulk Award</span>
+              <button onClick={() => setIsBulkAwardOpen(true)} className="rb-btn">
+                Bulk Award
               </button>
-
-              <button
-                onClick={() => setIsAddMemberOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-card text-text-primary hover:bg-surface-secondary text-xs font-semibold transition-colors"
-              >
-                <UserPlus className="h-3.5 w-3.5 text-text-muted" />
-                <span>Add Member</span>
+              <button onClick={() => setIsAddMemberOpen(true)} className="rb-btn">
+                Add Member
               </button>
-
-              <button
-                onClick={() => setIsAuditLogOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-card text-text-primary hover:bg-surface-secondary text-xs font-semibold transition-colors"
-              >
-                <FileText className="h-3.5 w-3.5 text-text-muted" />
-                <span>Audit Log</span>
+              <button onClick={() => setIsAuditLogOpen(true)} className="rb-btn">
+                Audit Log
               </button>
-
-              <button
-                onClick={() => setIsRewardsOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-card text-text-primary hover:bg-surface-secondary text-xs font-semibold transition-colors"
-              >
-                <Gift className="h-3.5 w-3.5 text-text-muted" />
-                <span>Rewards</span>
+              <button onClick={() => setIsRewardsOpen(true)} className="rb-btn">
+                Rewards
               </button>
 
               {/* Finalize the open week; reopen the newest closed one for late adjustments */}
               {currentWeek?.status === 'open' && (
                 <button
                   onClick={() => setIsCloseConfirmOpen(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/80 bg-surface-card text-text-muted hover:text-text-primary text-xs font-medium transition-colors"
+                  className="rb-btn text-text-muted"
                   title={isReopened ? 'Re-close the reopened week' : 'Test scheduled week finalization job'}
                 >
-                  <Lock className="h-3.5 w-3.5" />
-                  <span className="hidden md:inline">{isReopened ? 'Re-close Week' : 'Finalize Week'}</span>
+                  {isReopened ? 'Re-close Week' : 'Finalize Week'}
                 </button>
               )}
               {!isReopened && lastClosed && (
                 <button
                   onClick={handleReopenWeek}
                   disabled={reopenWeekMutation.isPending}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-500 text-xs font-bold hover:bg-amber-500/20 transition-colors"
+                  className="rb-btn font-semibold"
                   title={`Reopen Week ${lastClosed.id.replace('w-', '')} for late adjustments`}
                 >
-                  <Unlock className="h-3.5 w-3.5" />
-                  <span>Reopen Week {lastClosed.id.replace('w-', '')}</span>
+                  Reopen Week {lastClosed.id.replace('w-', '')}
                 </button>
               )}
             </div>
@@ -315,34 +237,31 @@ export function LeaderboardPage() {
         {activeTab === 'hall-of-fame' ? (
           <HallOfFame />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-            {/* Left 3 columns: Podium + Ranked List */}
-            <div className="lg:col-span-3 space-y-6">
-              {/* Podium for Top 3 */}
-              <div className="rounded-2xl border border-border bg-surface-card p-6 shadow-sm">
-                <div className="text-center mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">
-                    {activeTab === 'weekly' ? 'Current Weekly Standings' : 'All-Time Champions'}
-                  </span>
-                  <h2 className="text-lg font-bold font-display uppercase tracking-wider text-text-primary">
-                    Leaders Podium
-                  </h2>
+          <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-4 lg:gap-8">
+            {/* Standings ledger */}
+            <div className="lg:col-span-3">
+              <h2 className="rb-serif pb-4 text-2xl md:text-3xl">
+                {activeTab === 'weekly' ? 'Current Weekly Standings' : 'All-Time Champions'}
+              </h2>
+
+              <LayoutGroup>
+                <div className="rb-colhead rb-grid hidden lg:grid" aria-hidden>
+                  <span className="rb-rank">No.</span>
+                  <span className="rb-name">Member</span>
+                  <span className="rb-move text-right">Move</span>
+                  <span className="rb-wk text-right">{leaderboardScope === 'alltime' ? 'This wk' : ''}</span>
+                  <span className="rb-pts text-right">Points</span>
                 </div>
 
                 <Podium entries={entries} isLoading={isLoading} />
-              </div>
 
-              {/* Ranked List (Rank 4+) */}
-              <div className="rounded-2xl border border-border bg-surface-card p-4 md:p-6 shadow-sm">
-                <div className="flex items-center justify-between pb-3 border-b border-border">
-                  <div>
-                    <h3 className="font-display font-bold text-sm uppercase tracking-wider text-text-primary">
-                      Ranked Members ({splitPodium(entries).rest.length})
-                    </h3>
-                    <p className="text-[11px] text-text-muted">
-                      Tie-break rule: Higher points → Earliest time reached → Alphabetical order.
-                    </p>
-                  </div>
+                <div className="mt-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-text-primary pt-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.12em]">
+                    Ranked Members <span className="rb-num">({splitPodium(entries).rest.length})</span>
+                  </h3>
+                  <p className="text-[11px] text-text-muted">
+                    Tie-break rule: Higher points → Earliest time reached → Alphabetical order.
+                  </p>
                 </div>
 
                 <RankedList
@@ -351,34 +270,30 @@ export function LeaderboardPage() {
                   scope={leaderboardScope}
                   onAwardPoints={user.role === 'admin' ? handleOpenAward : undefined}
                 />
-              </div>
+              </LayoutGroup>
             </div>
 
-            {/* Right 1 column: Public Activity Feed & Rules */}
-            <div className="space-y-6">
+            {/* Activity feed & rewards */}
+            <aside className="space-y-10 lg:border-l lg:border-border lg:pl-6">
               <ActivityFeed />
 
-              {/* Rules & Rewards Info Card */}
-              <div className="rounded-xl border border-border bg-surface-card p-4 space-y-3 text-xs">
-                <h4 className="font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-positive" />
-                  <span>Weekly Rewards</span>
-                </h4>
-                <ul className="space-y-2 text-text-muted">
+              <section>
+                <h4 className="rb-serif border-b border-text-primary pb-2 text-lg">Weekly Rewards</h4>
+                <ul>
                   {rewardTiers.map((t) => (
-                    <li key={t.place} className="flex items-center justify-between gap-3">
-                      <span className={`${PLACE_STYLE[t.place]?.color} font-bold shrink-0`}>
-                        {PLACE_STYLE[t.place]?.icon} {PLACE_STYLE[t.place]?.name}
+                    <li key={t.place} className="flex items-baseline justify-between gap-3 border-b border-border py-2.5 text-xs">
+                      <span className={cn('shrink-0', t.place === 1 ? 'font-bold' : 'text-text-muted')}>
+                        {PLACE_NAME[t.place] ?? t.place}
                       </span>
-                      <span className="font-medium text-text-primary text-right">{t.label}</span>
+                      <span className="text-right font-medium">{t.label}</span>
                     </li>
                   ))}
                 </ul>
-                <div className="pt-2 border-t border-border/60 text-[11px] text-text-muted/80">
+                <p className="mt-3 text-[11px] text-text-muted">
                   Points reset weekly every Sunday at {CONFIG.WEEK_END_TIME} ({CONFIG.TIMEZONE}). All past records remain permanently in Hall of Fame.
-                </div>
-              </div>
-            </div>
+                </p>
+              </section>
+            </aside>
           </div>
         )}
       </main>

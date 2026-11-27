@@ -1,6 +1,5 @@
 import { useWeeks } from '../../hooks/useWeeks';
 import { WeekCard } from './WeekCard';
-import { Trophy } from 'lucide-react';
 import { EmptyState } from '../../shared/ui/EmptyState';
 
 export function HallOfFame() {
@@ -8,12 +7,9 @@ export function HallOfFame() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4 py-8">
+      <div className="py-8">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-24 rounded-xl border border-border bg-surface-card animate-pulse"
-          />
+          <div key={i} className="h-20 border-b border-border animate-pulse motion-reduce:animate-none" />
         ))}
       </div>
     );
@@ -22,7 +18,7 @@ export function HallOfFame() {
   if (weeks.length === 0) {
     return (
       <EmptyState
-        icon={<Trophy className="h-12 w-12 text-gold" />}
+        icon={null}
         title="Hall of Fame Archive"
         description="No past weeks finalized yet. Once the current week concludes, its winners and full standings will be preserved here."
       />
@@ -30,23 +26,18 @@ export function HallOfFame() {
   }
 
   return (
-    <div className="space-y-4 py-4">
-      <div className="flex items-center justify-between pb-2 border-b border-border">
+    <div className="py-2">
+      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-text-primary pb-3">
         <div>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-gold" />
-            <span>Hall of Fame & Past Champions</span>
-          </h3>
-          <p className="text-xs text-text-muted mt-0.5">
+          <h3 className="rb-serif text-2xl md:text-3xl">Hall of Fame & Past Champions</h3>
+          <p className="mt-1 text-xs text-text-muted">
             Archived final standings and reward recipients from previous cycles.
           </p>
         </div>
-        <span className="text-xs font-display font-semibold text-text-muted bg-surface-secondary px-2.5 py-1 rounded-full border border-border">
-          {weeks.length} Weeks Archived
-        </span>
+        <span className="rb-num text-xs text-text-muted">{weeks.length} Weeks Archived</span>
       </div>
 
-      <div className="space-y-3">
+      <div>
         {weeks.map((week) => (
           <WeekCard key={week.id} week={week} allWeeks={weeks} />
         ))}

@@ -1,12 +1,12 @@
 import { useState, useMemo, useRef } from 'react';
-import { AnimatePresence, MotionConfig } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { RankedRow } from './RankedRow';
 import { SearchFilter } from './SearchFilter';
 import { StickyYouBar } from './StickyYouBar';
 import { RowSkeleton } from '../../shared/ui/Skeleton';
 import { EmptyState } from '../../shared/ui/EmptyState';
-import { Users } from 'lucide-react';
 import { splitPodium } from '../../lib/ranking';
+import { staggerDelay } from './board/motion';
 import type { LeaderboardEntry, LeaderboardScope } from '../../types';
 
 interface RankedListProps {
@@ -51,7 +51,7 @@ export function RankedList({ entries, isLoading, scope, onAwardPoints }: RankedL
   if (!entries || entries.length === 0) {
     return (
       <EmptyState
-        icon={<Users className="h-12 w-12" />}
+        icon={null}
         title="No standings yet"
         description="Points haven't been awarded this period. Check back soon!"
       />
@@ -59,43 +59,41 @@ export function RankedList({ entries, isLoading, scope, onAwardPoints }: RankedL
   }
 
   return (
-    <MotionConfig reducedMotion="user">
-      <div className="mt-6 space-y-3">
-        <SearchFilter value={search} onChange={setSearch} className="max-w-sm" />
+    <div className="mt-4">
+      <SearchFilter value={search} onChange={setSearch} className="max-w-sm" />
 
-        <div ref={listRef} className="space-y-0.5">
-          <AnimatePresence mode="popLayout">
-            {paginated.map((entry) => (
-              <div key={entry.memberId} data-member-id={entry.memberId}>
-                <RankedRow
-                  entry={entry}
-                  showWeeklyPoints={scope === 'alltime'}
-                  onAwardPoints={onAwardPoints}
-                />
-              </div>
-            ))}
-          </AnimatePresence>
-        </div>
-
-        {hasMore && (
-          <button
-            onClick={() => setPage((p) => p + 1)}
-            className="mx-auto block rounded-lg px-6 py-2 text-sm font-medium text-text-muted hover:bg-surface-secondary transition-colors"
-          >
-            Show more ({filtered.length - paginated.length} remaining)
-          </button>
-        )}
-
-        {filtered.length === 0 && search && (
-          <EmptyState
-            icon={<Users className="h-8 w-8" />}
-            title="No matches"
-            description={`No members found matching "${search}"`}
-          />
-        )}
-
-        {entries && <StickyYouBar entries={entries} listRef={listRef} />}
+      <div ref={listRef} className="mt-2">
+        <AnimatePresence mode="popLayout">
+          {paginated.map((entry, i) => (
+            <RankedRow
+              key={entry.memberId}
+              entry={entry}
+              showWeeklyPoints={scope === 'alltime'}
+              onAwardPoints={onAwardPoints}
+              enterDelay={staggerDelay(i + 3)}
+            />
+          ))}
+        </AnimatePresence>
       </div>
-    </MotionConfig>
+
+      {hasMore && (
+        <button
+          onClick={() => setPage((p) => p + 1)}
+          className="rb-btn mx-auto mt-4 flex text-text-muted"
+        >
+          Show more <span className="rb-num">({filtered.length - paginated.length} remaining)</span>
+        </button>
+      )}
+
+      {filtered.length === 0 && search && (
+        <EmptyState
+          icon={null}
+          title="No matches"
+          description={`No members found matching "${search}"`}
+        />
+      )}
+
+      {entries && <StickyYouBar entries={entries} listRef={listRef} />}
+    </div>
   );
 }
