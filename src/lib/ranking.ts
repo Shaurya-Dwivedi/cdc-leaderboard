@@ -144,17 +144,11 @@ export function getWeeklyPointsMap(entries: PointEntry[], weekId: string): Map<s
 }
 
 /**
- * The podium shows one member per place 1-3 (first in tie-break order when places are
- * shared), and only members with points; an unearned place stays an empty placeholder.
- * Everyone else, including extra members tied into those places, goes in the list.
+ * The podium shows every member ranked 1-3 who has points, so members tied for a place
+ * share it (same rule as rewards). Everyone else goes in the list.
  */
 export function splitPodium(entries: LeaderboardEntry[] | undefined) {
   const all = entries ?? [];
-  const podium = [1, 2, 3].map((r) => all.find((e) => e.rank === r && e.totalPoints > 0) ?? null) as [
-    LeaderboardEntry | null,
-    LeaderboardEntry | null,
-    LeaderboardEntry | null,
-  ];
-  const onPodium = new Set(podium.flatMap((e) => (e ? [e.memberId] : [])));
-  return { podium, rest: all.filter((e) => !onPodium.has(e.memberId)) };
+  const onPodium = (e: LeaderboardEntry) => e.rank <= 3 && e.totalPoints > 0;
+  return { podium: all.filter(onPodium), rest: all.filter((e) => !onPodium(e)) };
 }

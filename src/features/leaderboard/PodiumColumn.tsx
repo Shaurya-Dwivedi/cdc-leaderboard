@@ -55,7 +55,7 @@ export function PodiumColumn({ entry, place, delay }: PodiumColumnProps) {
   if (!entry) {
     // Empty placeholder for fewer than 3 participants
     return (
-      <div className={cn('flex flex-col items-center', place === 1 ? 'order-2' : place === 2 ? 'order-1' : 'order-3')}>
+      <div className="flex flex-col items-center">
         <div
           className={cn(
             'flex flex-col items-center justify-end rounded-t-xl border border-dashed border-border/40 bg-surface-secondary/30',
@@ -71,10 +71,7 @@ export function PodiumColumn({ entry, place, delay }: PodiumColumnProps) {
 
   return (
     <motion.div
-      className={cn(
-        'flex flex-col items-center',
-        place === 1 ? 'order-2' : place === 2 ? 'order-1' : 'order-3',
-      )}
+      className="flex flex-col items-center"
       initial={{ y: 60, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{
