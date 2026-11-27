@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Avatar } from '../../shared/ui/Avatar';
-import { Crown, ChevronDown, ChevronUp, Calendar, Trophy } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { formatWeekRange } from '../../lib/week';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
 import { RankedRow } from '../leaderboard/RankedRow';
+import { useBoardMotion } from '../leaderboard/board/motion';
 import { cn } from '../../lib/utils';
 import type { WeekWithWinners } from '../../types';
 
@@ -15,6 +15,7 @@ interface WeekCardProps {
 
 export function WeekCard({ week, allWeeks }: WeekCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const { fade } = useBoardMotion();
 
   // Lazy query the full standings when expanded
   const { data: fullStandings = [], isLoading } = useLeaderboard('weekly', expanded ? week.id : undefined);
@@ -29,73 +30,55 @@ export function WeekCard({ week, allWeeks }: WeekCardProps) {
     : 0;
 
   return (
-    <div className="rounded-xl border border-border bg-surface-card overflow-hidden shadow-sm transition-all hover:border-border/80">
-      {/* Week Card Header / Summary */}
+    <div className="border-b border-border">
+      {/* Week summary line */}
       <div
         onClick={() => setExpanded(!expanded)}
-        className="p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:bg-surface-secondary/30 transition-colors"
+        className="flex cursor-pointer flex-col justify-between gap-3 py-4 md:flex-row md:items-center"
       >
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-display font-bold text-base text-text-primary">
-              Week {week.id.replace('w-', '')}
-            </span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-surface-secondary text-text-muted font-medium flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {formatWeekRange(week.startAt, week.endAt)}
-            </span>
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <span className="rb-serif text-xl">Week {week.id.replace('w-', '')}</span>
+            <span className="rb-num text-xs text-text-muted">{formatWeekRange(week.startAt, week.endAt)}</span>
           </div>
 
           {firstWinner && championWinsCount > 1 && (
-            <div className="flex items-center gap-1.5 text-xs text-gold font-medium mt-1">
-              <Trophy className="h-3.5 w-3.5" />
-              <span>
-                {firstWinner.memberName} — {championWinsCount}× Weekly Champion
-              </span>
-            </div>
+            <p className="mt-1 text-xs text-text-muted">
+              {firstWinner.memberName} — <span className="rb-num">{championWinsCount}×</span> Weekly Champion
+            </p>
           )}
         </div>
 
-        {/* Mini Podium for Top 3 */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            {week.winners.slice(0, 3).map((winner) => {
-              const placeStyle = {
-                1: 'border-gold text-gold',
-                2: 'border-silver text-silver',
-                3: 'border-bronze text-bronze',
-              }[winner.rank as 1 | 2 | 3] || 'border-border text-text-muted';
-
-              return (
-                <div
-                  key={winner.memberId}
-                  className="flex items-center gap-1.5 bg-surface-secondary/60 px-2.5 py-1.5 rounded-lg border border-border/60"
+        {/* Top 3 of that week */}
+        <div className="flex items-center justify-between gap-3">
+          <ol className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+            {week.winners.slice(0, 3).map((winner) => (
+              <li key={winner.memberId} className="flex items-baseline gap-2">
+                <span
+                  className={cn(
+                    'rb-num text-xs',
+                    winner.rank === 1 ? 'font-bold text-text-primary' : 'text-text-muted',
+                  )}
                 >
-                  <div className="relative">
-                    <Avatar src={winner.memberAvatar} name={winner.memberName} size="sm" />
-                    {winner.rank === 1 && (
-                      <Crown className="h-3 w-3 text-gold absolute -top-1.5 -right-1.5" />
-                    )}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-text-primary max-w-[80px] truncate">
-                      {winner.memberName.split(' ')[0]}
-                    </span>
-                    <span className={cn('text-[10px] font-display font-bold', placeStyle)}>
-                      {winner.points} pts
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  {winner.rank}
+                </span>
+                <span className="max-w-[80px] truncate text-sm font-medium">
+                  {winner.memberName.split(' ')[0]}
+                </span>
+                <span className="rb-num text-xs text-text-muted">{winner.points} pts</span>
+              </li>
+            ))}
+          </ol>
 
           <button
             type="button"
-            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-secondary transition-colors"
+            className="rb-btn-icon shrink-0"
+            aria-expanded={expanded}
             aria-label={expanded ? 'Collapse standings' : 'Expand full standings'}
           >
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <ChevronDown
+              className={cn('h-4 w-4 transition-transform duration-200', expanded && 'rotate-180')}
+            />
           </button>
         </div>
       </div>
@@ -104,20 +87,18 @@ export function WeekCard({ week, allWeeks }: WeekCardProps) {
       <AnimatePresence>
         {expanded && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="border-t border-border bg-surface-secondary/20 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={fade}
+            className="pb-6"
           >
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-3">
-              Full Standings Archive — Week {week.id.replace('w-', '')}
-            </h4>
+            <h4 className="rb-eyebrow mb-1">Full Standings Archive — Week {week.id.replace('w-', '')}</h4>
 
             {isLoading ? (
-              <div className="py-6 text-center text-xs text-text-muted">Loading standings…</div>
+              <div className="py-6 text-xs text-text-muted">Loading standings…</div>
             ) : (
-              <div className="space-y-1">
+              <div>
                 {fullStandings.map((entry) => (
                   <RankedRow key={entry.memberId} entry={entry} />
                 ))}

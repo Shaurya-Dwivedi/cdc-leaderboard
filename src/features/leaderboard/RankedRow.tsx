@@ -1,8 +1,9 @@
-import { motion } from 'motion/react';
+import { useId, useState, type Ref } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../lib/utils';
-import { Avatar } from '../../shared/ui/Avatar';
-import { AnimatedNumber } from '../../shared/ui/AnimatedNumber';
-import { TrendingUp, TrendingDown, Minus, Plus } from 'lucide-react';
+import { BoardNumber } from './board/BoardNumber';
+import { useBoardMotion } from './board/motion';
+import { ChevronDown, Plus } from 'lucide-react';
 import type { LeaderboardEntry } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -11,106 +12,171 @@ interface RankedRowProps {
   showWeeklyPoints?: boolean;
   onAwardPoints?: (memberId: string) => void;
   isHighlighted?: boolean;
+  /** Entrance delay in seconds (first-load stagger). */
+  enterDelay?: number;
+  /** Top-3 place: set larger, by size and spacing only. */
+  place?: 1 | 2 | 3;
+  /** Lets AnimatePresence mode="popLayout" measure the row. */
+  ref?: Ref<HTMLDivElement>;
 }
 
-export function RankedRow({ entry, showWeeklyPoints, onAwardPoints, isHighlighted }: RankedRowProps) {
+const RANK_SIZE = {
+  1: 'text-[2.75rem] sm:text-[3.5rem] text-accent',
+  2: 'text-[2.25rem] sm:text-[2.75rem]',
+  3: 'text-[2.25rem] sm:text-[2.75rem]',
+};
+const NAME_SIZE = { 1: 'text-2xl sm:text-3xl', 2: 'text-xl sm:text-2xl', 3: 'text-xl sm:text-2xl' };
+const POINTS_SIZE = { 1: 'text-xl sm:text-2xl', 2: 'text-lg sm:text-xl', 3: 'text-lg sm:text-xl' };
+
+export function RankedRow({
+  entry,
+  showWeeklyPoints,
+  onAwardPoints,
+  isHighlighted,
+  enterDelay = 0,
+  place,
+  ref,
+}: RankedRowProps) {
   const { user } = useAuth();
+  const { reduced, spring, fade } = useBoardMotion();
+  const [open, setOpen] = useState(false);
+  const detailsId = useId();
   const isCurrentUser = user.id === entry.memberId;
   const isAdmin = user.role === 'admin';
 
-  const DeltaIcon = entry.delta && entry.delta > 0 ? TrendingUp : entry.delta && entry.delta < 0 ? TrendingDown : Minus;
-  const deltaColor = entry.delta && entry.delta > 0 ? 'text-positive' : entry.delta && entry.delta < 0 ? 'text-negative' : 'text-text-muted';
+  const delta = entry.delta;
+  const deltaLabel =
+    delta == null
+      ? null
+      : delta > 0
+      ? `Moved up ${delta} positions`
+      : delta < 0
+      ? `Moved down ${Math.abs(delta)} positions`
+      : 'No change';
+  const weekly = showWeeklyPoints && entry.weeklyPoints != null ? entry.weeklyPoints : null;
+
+  const name = (
+    <>
+      <span
+        className={cn(
+          'truncate',
+          place ? cn('rb-serif', NAME_SIZE[place]) : 'text-[15px]',
+          isCurrentUser ? 'font-semibold' : !place && 'font-medium',
+        )}
+      >
+        {entry.memberName}
+      </span>
+      {isCurrentUser && <span className="rb-you">You</span>}
+    </>
+  );
 
   return (
     <motion.div
-      layout
+      ref={ref}
+      layout="position"
       layoutId={`row-${entry.memberId}`}
-      className={cn(
-        'group flex items-center gap-3 rounded-lg px-3 py-2.5 md:px-4 md:py-3 transition-colors',
-        isCurrentUser && 'bg-accent/5 border border-accent/20',
-        isHighlighted && 'bg-accent/10',
-        !isCurrentUser && 'hover:bg-surface-secondary/50',
-      )}
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+      data-member-id={entry.memberId}
+      data-open={open || undefined}
+      data-highlight={isHighlighted || undefined}
+      className={cn('rb-row rb-grid group', place && 'rb-top')}
+      initial={{ opacity: 0, y: reduced ? 0 : 7 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, transition: fade }}
+      transition={{ layout: spring, default: { ...fade, delay: enterDelay } }}
     >
-      {/* Rank */}
-      <span className="w-8 text-center font-display text-sm font-bold text-text-muted tabular-nums">
+      <span className="rb-mark" aria-hidden />
+
+      <span
+        className={cn(
+          'rb-rank rb-num',
+          place ? RANK_SIZE[place] : 'text-xl sm:text-[1.375rem] text-text-muted',
+        )}
+      >
         {entry.rank}
       </span>
 
-      {/* Avatar */}
-      <Avatar src={entry.memberAvatar} name={entry.memberName} size="sm" />
-
-      {/* Name */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'text-sm font-medium truncate',
-              isCurrentUser ? 'text-accent' : 'text-text-primary',
-            )}
-          >
-            {entry.memberName}
-          </span>
-          {isCurrentUser && (
-            <span className="text-[10px] font-semibold text-accent bg-accent/10 px-1.5 py-0.5 rounded">
-              YOU
-            </span>
-          )}
-        </div>
-        {showWeeklyPoints && entry.weeklyPoints != null && (
-          <span className="text-xs text-text-muted">
-            +{entry.weeklyPoints} this week
-          </span>
-        )}
-      </div>
-
-      {/* Delta */}
-      {entry.delta != null && (
-        <div
-          className={cn('flex items-center gap-0.5', deltaColor)}
-          aria-label={
-            entry.delta > 0
-              ? `Moved up ${entry.delta} positions`
-              : entry.delta < 0
-              ? `Moved down ${Math.abs(entry.delta)} positions`
-              : 'No change'
-          }
+      <div className="rb-name min-w-0">
+        {/* Below desktop the name opens the row's details; on desktop every stat has a column. */}
+        <button
+          type="button"
+          className="rb-toggle"
+          aria-expanded={open}
+          aria-controls={detailsId}
+          onClick={() => setOpen((o) => !o)}
         >
-          <DeltaIcon className="h-3.5 w-3.5" />
-          {entry.delta !== 0 && (
-            <span className="text-xs font-semibold font-display tabular-nums">
-              {Math.abs(entry.delta)}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Points */}
-      <div className="text-right min-w-[60px]">
-        <AnimatedNumber
-          value={entry.totalPoints}
-          className="text-sm font-bold text-text-primary"
-        />
-        <span className="text-[10px] text-text-muted ml-0.5">pts</span>
+          {name}
+          <span className="sr-only">, details</span>
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              'ml-auto h-4 w-4 shrink-0 text-text-muted transition-transform duration-200',
+              open && 'rotate-180',
+            )}
+          />
+        </button>
+        <span className="hidden min-w-0 items-center gap-2 lg:flex">{name}</span>
       </div>
 
-      {/* Admin actions */}
-      {isAdmin && onAwardPoints && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="rb-meta">
+        <span className={cn('rb-pts', place && POINTS_SIZE[place])}>
+          <BoardNumber value={entry.totalPoints} className="font-semibold" />
+          <span className="rb-unit">pts</span>
+        </span>
+        <span className="rb-sec rb-move rb-num text-xs text-text-muted">
+          {deltaLabel && (
+            <span role="img" aria-label={deltaLabel}>
+              {delta! > 0 ? `▲${delta}` : delta! < 0 ? `▼${Math.abs(delta!)}` : '–'}
+            </span>
+          )}
+        </span>
+        <span className="rb-sec rb-wk rb-num text-xs">
+          {weekly != null && (
+            <>
+              +{weekly}
+              <span className="rb-unit">this wk</span>
+            </>
+          )}
+        </span>
+      </div>
+
+      <div className="rb-act">
+        {isAdmin && onAwardPoints && (
           <button
+            type="button"
             onClick={() => onAwardPoints(entry.memberId)}
-            className="rounded-md p-1.5 text-text-muted hover:bg-surface-secondary hover:text-accent transition-colors"
+            className="rb-award"
             aria-label={`Award points to ${entry.memberName}`}
             disabled={entry.memberId === user.id}
             title={entry.memberId === user.id ? "Can't award points to yourself" : `Award points to ${entry.memberName}`}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.dl
+            id={detailsId}
+            className="rb-details grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 pb-1 pt-2 text-xs"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={fade}
+          >
+            <dt className="text-text-muted">Movement</dt>
+            <dd>{deltaLabel ?? '—'}</dd>
+            <dt className="text-text-muted">Previous rank</dt>
+            <dd className="rb-num">{entry.previousRank ?? '—'}</dd>
+            {weekly != null && (
+              <>
+                <dt className="text-text-muted">This week</dt>
+                <dd className="rb-num">+{weekly} pts</dd>
+              </>
+            )}
+          </motion.dl>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

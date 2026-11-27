@@ -1,46 +1,30 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../../shared/ui/Modal';
 import { useWeeks, useCurrentWeek } from '../../hooks/useWeeks';
-import { Avatar } from '../../shared/ui/Avatar';
-import { Crown, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useRewardTiers } from '../../hooks/useRewards';
 import type { WeekWithWinners } from '../../types';
 
 const SHOW_WINDOW_MS = 24 * 60 * 60 * 1000;
-const RANK_STYLE: Record<number, string> = { 1: 'text-gold', 2: 'text-silver', 3: 'text-bronze' };
-
 type Winner = WeekWithWinners['winners'][number];
 
-/** Classic podium order (2-1-3) when ranks are distinct, otherwise plain rank order. */
-function podiumOrder(winners: Winner[]): Winner[] {
-  const sorted = [...winners].sort((a, b) => a.rank - b.rank);
-  const distinct = sorted.length === 3 && sorted.every((w, i) => w.rank === i + 1);
-  return distinct ? [sorted[1], sorted[0], sorted[2]] : sorted;
-}
-
-function WinnerCard({ w, reward }: { w: Winner; reward?: string }) {
+/** One line of the results notice. Rank 1 is set larger, in the accent. */
+function WinnerLine({ w, reward }: { w: Winner; reward?: string }) {
   const first = w.rank === 1;
   return (
-    <div className={`flex flex-col items-center ${first ? 'w-28 -translate-y-3' : 'w-24'}`}>
-      <div className="relative">
-        <Avatar src={w.memberAvatar} name={w.memberName} size={first ? 'lg' : 'md'} />
-        {first && (
-          <Crown className="h-6 w-6 text-gold fill-gold/30 absolute -top-3 -right-2 rotate-12" />
-        )}
-      </div>
-      <div className="mt-2 text-center">
-        <span className="block text-xs font-bold text-text-primary truncate max-w-[100px]">
-          {first ? w.memberName : w.memberName.split(' ')[0]}
-        </span>
-        <span className={`text-[11px] font-display font-bold ${RANK_STYLE[w.rank] ?? ''}`}>
-          #{w.rank} • {w.points} pts
-        </span>
-        <span className="block text-[10px] text-text-muted mt-0.5">
-          {reward?.split('+')[0]}
-        </span>
-      </div>
-    </div>
+    <li className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-baseline gap-3 border-b border-border py-3 text-left">
+      <span className={`rb-num text-right ${first ? 'text-[2.5rem] leading-none text-accent' : 'text-2xl text-text-muted'}`}>
+        {w.rank}
+      </span>
+      <span className="min-w-0">
+        <span className={`block truncate ${first ? 'rb-serif text-xl' : 'text-sm font-semibold'}`}>{w.memberName}</span>
+        <span className="block text-[11px] text-text-muted">{reward?.split('+')[0]}</span>
+      </span>
+      <span className="rb-num text-sm font-semibold">
+        {w.points}
+        <span className="rb-unit">pts</span>
+      </span>
+    </li>
   );
 }
 
@@ -68,7 +52,7 @@ export function WinnerAnnouncement() {
         particleCount: 50,
         spread: 60,
         origin: { y: 0.6 },
-        colors: ['#D4A017', '#FF4D4F', '#A0A0A0', '#CD7F32'],
+        colors: ['#C8411E', '#1A1813', '#6E6A60', '#D6D0C2'],
         disableForReducedMotion: true,
       });
     } catch {
@@ -87,33 +71,27 @@ export function WinnerAnnouncement() {
     <Modal
       open
       onClose={handleDismiss}
-      title="🏆 Week Concluded — Champions Announced!"
+      title="Week Concluded — Champions Announced!"
       size="md"
     >
-      <div className="text-center space-y-6 py-2">
+      <div className="space-y-5 py-2">
         <div>
-          <span className="text-xs font-semibold text-accent uppercase tracking-widest flex items-center justify-center gap-1.5 mb-1">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Official Standings Finalized</span>
-          </span>
-          <h3 className="text-xl font-bold text-text-primary">
-            Week {latest.id.replace('w-', '')} Winners
-          </h3>
-          <p className="text-xs text-text-muted mt-1 max-w-sm mx-auto">
+          <span className="rb-eyebrow">Official Standings Finalized</span>
+          <h3 className="rb-serif mt-1 text-2xl">Week {latest.id.replace('w-', '')} Winners</h3>
+          <p className="mt-1 max-w-sm text-xs text-text-muted">
             Congratulations to this week’s top contributors for stellar support and impact!
           </p>
         </div>
 
-        <div className="flex flex-wrap items-end justify-center gap-3 pt-2">
-          {podiumOrder(latest.winners).map((w) => (
-            <WinnerCard key={w.memberId} w={w} reward={tiers.find((t) => t.place === w.rank)?.label} />
-          ))}
-        </div>
+        <ol className="border-t border-text-primary">
+          {[...latest.winners]
+            .sort((a, b) => a.rank - b.rank)
+            .map((w) => (
+              <WinnerLine key={w.memberId} w={w} reward={tiers.find((t) => t.place === w.rank)?.label} />
+            ))}
+        </ol>
 
-        <button
-          onClick={handleDismiss}
-          className="w-full py-2.5 rounded-lg bg-accent text-white font-bold text-xs uppercase tracking-wider hover:bg-accent-hover transition-colors shadow-md shadow-accent/25"
-        >
+        <button onClick={handleDismiss} className="rb-btn rb-btn-primary w-full justify-center">
           View Full Leaderboard
         </button>
       </div>
