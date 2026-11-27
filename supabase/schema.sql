@@ -197,11 +197,12 @@ begin
   if p_member_id = v_admin then
     raise exception 'Admins are not permitted to award points to themselves';
   end if;
-  select id into v_week from weeks where status = 'open' order by start_at desc limit 1;
+  select id into v_week from weeks where status = 'open' order by start_at limit 1;
   if v_week is null then
     raise exception 'No open week. Reopen a week first.';
   end if;
-  if (select end_at from weeks where id = v_week) <= now() then
+  if (select end_at from weeks where id = v_week) <= now()
+     and not exists (select 1 from weeks n where n.start_at > (select start_at from weeks where id = v_week)) then
     raise exception 'This week has ended and is closing. Try again in a minute.';
   end if;
   insert into point_entries (member_id, week_id, delta, reason_category, note, link, created_by)
@@ -229,11 +230,12 @@ begin
   if v_admin = any (p_member_ids) then
     raise exception 'Admins are not permitted to award points to themselves';
   end if;
-  select id into v_week from weeks where status = 'open' order by start_at desc limit 1;
+  select id into v_week from weeks where status = 'open' order by start_at limit 1;
   if v_week is null then
     raise exception 'No open week. Reopen a week first.';
   end if;
-  if (select end_at from weeks where id = v_week) <= now() then
+  if (select end_at from weeks where id = v_week) <= now()
+     and not exists (select 1 from weeks n where n.start_at > (select start_at from weeks where id = v_week)) then
     raise exception 'This week has ended and is closing. Try again in a minute.';
   end if;
   return query
@@ -304,6 +306,14 @@ begin
   end if;
   if v_row.status = 'open' then
     raise exception 'Week % is already open', p_week_id;
+  end if;
+  -- Only the newest closed week can be reopened, one at a time.
+  if exists (select 1 from weeks where status = 'closed' and start_at > v_row.start_at) then
+    raise exception 'Only the most recently closed week can be reopened';
+  end if;
+  if exists (select 1 from weeks o where o.status = 'open'
+             and exists (select 1 from weeks n where n.start_at > o.start_at)) then
+    raise exception 'Close the currently reopened week first';
   end if;
   update weeks set status = 'open', closed_at = null where id = p_week_id returning * into v_row;
   insert into week_events (week_id, action, by_member_id, reason)

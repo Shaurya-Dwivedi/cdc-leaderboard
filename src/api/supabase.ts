@@ -100,7 +100,7 @@ export class SupabaseApiClient implements ApiClient {
       .from('weeks')
       .select('*')
       .eq('status', 'open')
-      .order('start_at', { ascending: false })
+      .order('start_at', { ascending: true })
       .limit(1)
       .maybeSingle();
 
