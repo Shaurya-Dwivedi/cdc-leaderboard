@@ -4,7 +4,7 @@ import { useRewardTiers } from '../hooks/useRewards';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLeaderboard } from '../hooks/useLeaderboard';
-import { useCurrentWeek } from '../hooks/useWeeks';
+import { useCurrentWeek, useWeeks } from '../hooks/useWeeks';
 import { useCloseWeek, useReopenWeek } from '../hooks/usePoints';
 import { CountdownTimer } from '../features/countdown/CountdownTimer';
 import { Podium } from '../features/leaderboard/Podium';
@@ -67,9 +67,13 @@ export function LeaderboardPage() {
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
 
   // Queries
-  const { data: currentWeekData } = useCurrentWeek();
+  const { data: currentWeekData, serverOffset } = useCurrentWeek();
+  const { data: closedWeeks = [] } = useWeeks();
   const { data: rewardTiers = [] } = useRewardTiers();
   const currentWeek = currentWeekData?.week;
+  // An open week whose end has passed can only be a reopened one (the scheduler closes the latest).
+  const isReopened = !!currentWeek && new Date(currentWeek.endAt).getTime() <= Date.now() + serverOffset;
+  const lastClosed = closedWeeks[0];
 
   const leaderboardScope: LeaderboardScope = activeTab === 'alltime' ? 'alltime' : 'weekly';
   const { data: entries, isLoading } = useLeaderboard(leaderboardScope);
@@ -107,13 +111,13 @@ export function LeaderboardPage() {
   };
 
   const handleReopenWeek = () => {
-    if (!currentWeek) return;
+    if (!lastClosed) return;
     const reason = window.prompt(
       'Enter reason for reopening week (will be recorded in audit ledger):',
       'Late reconciliation of weekend support tickets',
     );
     if (reason) {
-      reopenWeekMutation.mutate({ weekId: currentWeek.id, reason });
+      reopenWeekMutation.mutate({ weekId: lastClosed.id, reason });
     }
   };
 
@@ -186,7 +190,9 @@ export function LeaderboardPage() {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-secondary border border-border text-xs text-text-muted">
             <Flame className="h-3.5 w-3.5 text-accent" />
             <span>
-              {currentWeek ? `Week ${currentWeek.id.replace('w-', '')}` : 'This week'} closes Sunday {CONFIG.WEEK_END_TIME} ({CONFIG.TIMEZONE})
+              {isReopened && currentWeek
+                ? `Week ${currentWeek.id.replace('w-', '')} reopened for adjustments`
+                : `${currentWeek ? `Week ${currentWeek.id.replace('w-', '')}` : 'This week'} closes Sunday ${CONFIG.WEEK_END_TIME} (${CONFIG.TIMEZONE})`}
             </span>
           </div>
 
@@ -279,24 +285,26 @@ export function LeaderboardPage() {
                 <span>Rewards</span>
               </button>
 
-              {/* Close / Reopen week actions for testing idempotence and late edits */}
-              {currentWeek?.status === 'open' ? (
+              {/* Finalize the open week; reopen the newest closed one for late adjustments */}
+              {currentWeek?.status === 'open' && (
                 <button
                   onClick={() => setIsCloseConfirmOpen(true)}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/80 bg-surface-card text-text-muted hover:text-text-primary text-xs font-medium transition-colors"
-                  title="Test scheduled week finalization job"
+                  title={isReopened ? 'Re-close the reopened week' : 'Test scheduled week finalization job'}
                 >
                   <Lock className="h-3.5 w-3.5" />
-                  <span className="hidden md:inline">Finalize Week</span>
+                  <span className="hidden md:inline">{isReopened ? 'Re-close Week' : 'Finalize Week'}</span>
                 </button>
-              ) : (
+              )}
+              {!isReopened && lastClosed && (
                 <button
                   onClick={handleReopenWeek}
+                  disabled={reopenWeekMutation.isPending}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-500 text-xs font-bold hover:bg-amber-500/20 transition-colors"
-                  title="Reopen closed week for late adjustments"
+                  title={`Reopen Week ${lastClosed.id.replace('w-', '')} for late adjustments`}
                 >
                   <Unlock className="h-3.5 w-3.5" />
-                  <span>Reopen Week</span>
+                  <span>Reopen Week {lastClosed.id.replace('w-', '')}</span>
                 </button>
               )}
             </div>
